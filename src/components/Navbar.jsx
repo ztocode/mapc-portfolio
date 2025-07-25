@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import mapcLogo from '../assets/MAPC LOGO.png'
+import mapcLogo from '../assets/img/mapc-logo.png'
 
 const Navbar = () => {
   const navItems = [
