@@ -12,7 +12,7 @@ const DashboardPage = () => {
   const [chartData, setChartData] = useState([])
   const [viewMode, setViewMode] = useState('statistics') // 'statistics' or 'table'
   const [yearlyData, setYearlyData] = useState([])
-  const [timeView, setTimeView] = useState('current') // 'current' or 'historical' or 'empty'
+  const [timeView, setTimeView] = useState('historical') // 'current' or 'historical' or 'empty'
   const [currentYearData, setCurrentYearData] = useState({})
   const [historicalData, setHistoricalData] = useState({})
   const [emptyData, setEmptyData] = useState({})
@@ -35,7 +35,7 @@ const DashboardPage = () => {
     const historicalProjects = []
     const emptyProjects = []
     
-    // Check if we have any projects at all
+
     if (filteredProjects.length === 0) {
       // No projects found - create empty data
       setEmptyData({
@@ -289,7 +289,7 @@ const DashboardPage = () => {
     )
   }
 
-  const BreakdownCard = ({ title, data, color = 'blue' }) => {
+  const BreakdownCard = ({ title, data, color = 'blue', sortKeys = false, sortNumeric = false, scrollable = false, breakWords = false }) => {
     const colorClasses = {
       blue: 'bg-blue-100 text-blue-800',
       green: 'bg-green-100 text-green-800',
@@ -298,13 +298,21 @@ const DashboardPage = () => {
       purple: 'bg-purple-100 text-purple-800'
     }
 
+    // Optionally sort keys alphabetically or numerically
+    let entries = Object.entries(data)
+    if (sortKeys) {
+      entries = entries.sort((a, b) => a[0].localeCompare(b[0]))
+    } else if (sortNumeric) {
+      entries = entries.sort((a, b) => parseInt(b[0]) - parseInt(a[0])) // Latest to oldest
+    }
+
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 ${scrollable ? 'h-[450px] overflow-auto' : ''}`}>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
         <div className="space-y-3">
-          {Object.entries(data).map(([key, value]) => (
+          {entries.map(([key, value]) => (
             <div key={key} className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">{key}</span>
+              <span className={`text-sm text-gray-600 ${breakWords ? 'break-words whitespace-normal max-w-[180px]' : ''}`}>{key}</span>
               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${colorClasses[color]}`}>
                 {value}
               </span>
@@ -327,6 +335,8 @@ const DashboardPage = () => {
         title="Project Distribution by Year"
         data={yearlyBreakdown}
         color="blue"
+        sortNumeric={true}
+        scrollable={true}
       />
     )
   }
@@ -340,39 +350,60 @@ const DashboardPage = () => {
       <div className="space-y-6">
         {/* Time View Toggle */}
         <div className="flex justify-center">
-          <div className="flex bg-gray-200 rounded-lg p-1 space-x-2">
-            <button
-              onClick={() => setTimeView('current')}
-              className={`px-10 py-4 text-sm font-medium rounded-md transition-colors mx-2 mr-2 ${
-                timeView === 'current'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              {currentYear} (Current Year)
-            </button>
-            <button
-              onClick={() => setTimeView('historical')}
-              className={`px-10 py-4 text-sm font-medium rounded-md transition-colors mx-2 mr-2 ${
-                timeView === 'historical'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              Historical (All Years)
-            </button>
-            <button
-              onClick={() => setTimeView('empty')}
-              className={`px-10 py-4 text-sm font-medium rounded-md transition-colors mx-2 mr-2 ${
-                timeView === 'empty'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              Missing Project Year
-            </button>
+          <div className="relative w-[420px] h-14 flex items-center justify-between bg-gray-100 rounded-full shadow-inner px-2 custom-segmented-switch">
+            {['current', 'historical', 'empty'].map((key, idx) => {
+              const labels = {
+                current: `${currentYear} (Current Year)`,
+                historical: 'Historical (All Years)',
+                empty: 'Missing Project Year',
+              }
+              const isActive = timeView === key
+              return (
+                <button
+                  key={key}
+                  onClick={() => setTimeView(key)}
+                  className={`relative flex-1 h-10 mx-1 rounded-full z-10 transition-all duration-300 font-semibold text-sm focus:outline-none
+                    ${isActive ? 'text-white' : 'text-gray-700 hover:text-blue-600'}
+                  `}
+                  style={{
+                    boxShadow: isActive ? '0 2px 8px 0 rgba(59,130,246,0.15)' : 'none',
+                  }}
+                  tabIndex={isActive ? 0 : -1}
+                  aria-pressed={isActive}
+                >
+                  {labels[key]}
+                </button>
+              )
+            })}
+            {/* Animated background */}
+            <span
+              className="absolute top-2 left-2 h-10 rounded-full bg-blue-600 transition-all duration-300 z-0"
+              style={{
+                width: 'calc(33.333% - 8px)',
+                transform:
+                  timeView === 'current'
+                    ? 'translateX(0%)'
+                    : timeView === 'historical'
+                    ? 'translateX(100%)'
+                    : 'translateX(200%)',
+              }}
+            />
           </div>
         </div>
+
+        {/* Custom CSS for segmented switch */}
+        <style>{`
+          .custom-segmented-switch {
+            position: relative;
+            overflow: hidden;
+          }
+          .custom-segmented-switch button {
+            background: transparent;
+          }
+          .custom-segmented-switch span {
+            box-shadow: 0 2px 8px 0 rgba(59,130,246,0.15);
+          }
+        `}</style>
 
         {/* Main Metrics */}
         <div className="grid grid-cols-3 gap-6">
@@ -399,13 +430,39 @@ const DashboardPage = () => {
             title="Project Types"
             data={metrics.typeBreakdown || {}}
             color="green"
+            scrollable={true}
+            breakWords={true}
           />
           <BreakdownCard
             title="Departments"
             data={metrics.departmentBreakdown || {}}
             color="purple"
+            sortKeys={true}
+            scrollable={true}
           />
-          <YearlyBreakdownCard />
+          <BreakdownCard
+            title="Project Distribution by Year"
+            data={(() => {
+              // Use the correct yearly data for the selected view
+              if (timeView === 'current') {
+                // Only current year
+                const y = new Date().getFullYear()
+                return { [y]: metrics.projectCount?.total || 0 }
+              } else if (timeView === 'historical') {
+                // All years including current
+                return yearlyData.reduce((acc, d) => {
+                  acc[d.year] = d.count
+                  return acc
+                }, {})
+              } else {
+                // Missing year: show 0 or empty
+                return {}
+              }
+            })()}
+            color="blue"
+            sortNumeric={true}
+            scrollable={true}
+          />
         </div>
       </div>
     )
@@ -463,14 +520,16 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Project Count Card - Always visible */}
-      <div className="mb-8">
-        <ProjectCountCard
-          selected={selectedCategory === 'all' ? (projects?.length || 0) : (projects?.filter(p => p.projectType === selectedCategory).length || 0)}
-          total={projects?.length || 0}
-          category={selectedCategory === 'all' ? 'All Projects' : selectedCategory}
-        />
-      </div>
+      {/* Project Count Card - Only visible in statistics view */}
+      {viewMode === 'statistics' && (
+        <div className="mb-8">
+          <ProjectCountCard
+            selected={selectedCategory === 'all' ? (projects?.length || 0) : (projects?.filter(p => p.projectType === selectedCategory).length || 0)}
+            total={projects?.length || 0}
+            category={selectedCategory === 'all' ? 'All Projects' : selectedCategory}
+          />
+        </div>
+      )}
 
       {/* Dynamic Content Based on View Mode */}
       {viewMode === 'statistics' ? <StatisticsView /> : <TableView />}

@@ -7,9 +7,6 @@ import './index.css'
 import Root from './routes/root'
 import DashboardPage from '../src/pages/DashboardPage'
 import ProjectsPage from '../src/pages/ProjectsPage'
-import AnalyticsPage from '../src/pages/AnalyticsPage'
-import ReportsPage from '../src/pages/ReportsPage'
-import SettingsPage from '../src/pages/SettingsPage'
 import MapPage from '../src/pages/MapPage'
 
 
@@ -28,18 +25,6 @@ const routes = [
       {
         path: "projects/",
         element: <ProjectsPage />,
-      },
-      {
-        path: "analytics/",
-        element: <AnalyticsPage />,
-      },
-      {
-        path: "reports/",
-        element: <ReportsPage />,
-      },
-      {
-        path: "settings/",
-        element: <SettingsPage />,
       },
       {
         path: "map/",
