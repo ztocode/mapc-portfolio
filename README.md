@@ -2,7 +2,6 @@
 
 A modern React application built with Vite, featuring Tailwind CSS for styling, Mapbox GL for interactive maps, and @mapc/airtable-cms for content management.
 
-
 ## Getting Started
 
 ### Prerequisites
