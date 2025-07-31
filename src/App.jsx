@@ -3,9 +3,6 @@ import Root from './routes/root'
 import Dashboard from './pages/DashboardPage'
 import Projects from './pages/ProjectsPage'
 import Map from './pages/MapPage'
-import Analytics from './pages/AnalyticsPage'
-import Reports from './pages/ReportsPage'
-import Settings from './pages/SettingsPage'
 
 function App() {  
   return (

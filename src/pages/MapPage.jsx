@@ -15,7 +15,8 @@ const MapPage = () => {
     selectedGeographicCount,
     setSelectedGeographicCount,
     selectedProject,
-    setSelectedProject
+    setSelectedProject,
+    isSidebarCollapsed
   } = useOutletContext()
   const dispatch = useDispatch()
   const allProjects = useSelector(selectAllProjects)
@@ -50,8 +51,8 @@ const MapPage = () => {
       setIsMinimized(true) // Start collapsed by default
       // Position popup at bottom of screen, moved right and up
       setPopupPosition({
-        x: 200, // 200px from left (moved further right)
-        y: window.innerHeight - (window.innerHeight * 0.5) - 100 // 50vh from bottom, moved up by 100px
+        x: 300, // 300px from left (moved further right)
+        y: window.innerHeight - (window.innerHeight * 0.6) - 150 // 60vh from bottom, moved up by 150px
       })
     }
   }, [selectedCity, viewMode])
@@ -306,33 +307,42 @@ const MapPage = () => {
     setSelectedCity(null)
   }
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center w-full h-full min-h-[500px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading map data...</p>
-        </div>
+  // Loading mask component
+  const LoadingMask = () => (
+    <div className="fixed inset-0 bg-gray-300 bg-opacity-50 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(209, 213, 219, 0.5)' }}>
+      <div className="text-center bg-white bg-opacity-90 rounded-lg p-6 shadow-lg">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-lg font-medium text-gray-900 mb-2">Loading Map Data</p>
+        <p className="text-sm text-gray-600">Please wait while we fetch your project information...</p>
       </div>
-    )
-  }
+    </div>
+  )
 
-  // Error state
-  if (error) {
-    return (
-      <div className="flex items-center justify-center w-full h-full min-h-[500px]">
-        <div className="text-center">
-          <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Data</h3>
-          <p className="text-gray-600">{error}</p>
-        </div>
+  // Error component
+  const ErrorDisplay = () => (
+    <div className="fixed inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
+      <div className="text-center max-w-md mx-auto p-6">
+        <div className="text-red-500 text-6xl mb-4">⚠️</div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Data</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => dispatch(fetchProjects())}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+        >
+          Try Again
+        </button>
       </div>
-    )
-  }
+    </div>
+  )
 
   return (
-    <div className="flex flex-col w-full h-screen p-6">
+    <div className="flex flex-col w-full h-full p-6">
+      {/* Loading Mask */}
+      {loading && <LoadingMask />}
+      
+      {/* Error Display */}
+      {error && <ErrorDisplay />}
+      
       {/* View Mode Toggle */}
       <div className="mb-4">
         <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
@@ -397,7 +407,7 @@ const MapPage = () => {
         </div>
       )}
 
-      <div className="w-full flex-1 min-h-[600px] mb-4">
+      <div className="w-full flex-1 min-h-0" key={`map-container-${isSidebarCollapsed}`}>
         <Map 
           onCitySelect={viewMode === 'city' ? setSelectedCity : null} 
           selectedCity={selectedCity}
@@ -478,22 +488,23 @@ const MapPage = () => {
 
       {/* Project Details Popup */}
       {projectPopupVisible && selectedProject && (
-        <div
-          className={`fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col ${
-            isProjectMinimized 
-              ? 'w-80 h-16 bottom-4 right-4' 
-              : 'w-[1000px] h-[300px]'
-          }`}
-          style={{
-            left: isProjectMinimized ? 'auto' : `${projectPopupPosition.x}px`,
-            top: isProjectMinimized ? 'auto' : `${projectPopupPosition.y}px`,
-            cursor: isProjectDragging ? 'grabbing' : 'default'
-          }}
-          onMouseDown={isProjectMinimized ? undefined : handleProjectMouseDown}
-          onMouseMove={isProjectMinimized ? undefined : handleProjectMouseMove}
-          onMouseUp={isProjectMinimized ? undefined : handleProjectMouseUp}
-          onMouseLeave={isProjectMinimized ? undefined : handleProjectMouseUp}
-        >
+        <div className={`fixed inset-0 z-50 ${isProjectMinimized ? '' : 'bg-gray-300 bg-opacity-50 flex items-center justify-center'}`} style={{ backgroundColor: isProjectMinimized ? 'transparent' : 'rgba(209, 213, 219, 0.5)' }}>
+          <div
+            className={`bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col ${
+              isProjectMinimized 
+                ? 'w-80 h-16 bottom-4 right-4 absolute' 
+                : 'w-[1000px] h-[300px]'
+            }`}
+            style={{
+              cursor: isProjectDragging ? 'grabbing' : 'default',
+              left: isProjectMinimized ? 'auto' : `${projectPopupPosition.x}px`,
+              top: isProjectMinimized ? 'auto' : `${projectPopupPosition.y}px`
+            }}
+            onMouseDown={isProjectMinimized ? undefined : handleProjectMouseDown}
+            onMouseMove={isProjectMinimized ? undefined : handleProjectMouseMove}
+            onMouseUp={isProjectMinimized ? undefined : handleProjectMouseUp}
+            onMouseLeave={isProjectMinimized ? undefined : handleProjectMouseUp}
+          >
           {/* Header */}
           <div className={`popup-header flex items-center justify-between border-b border-gray-200 bg-gray-50 rounded-t-lg cursor-grab flex-shrink-0 ${
             isProjectMinimized ? 'p-2' : 'p-3'
@@ -597,6 +608,27 @@ const MapPage = () => {
                       )}
                     </div>
                   </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-600">MetroCommon 2050 Goals:</span>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {selectedProject.metroCommon2050goals ? (
+                        selectedProject.metroCommon2050goals
+                          .split(',')
+                          .map(goal => goal.trim())
+                          .filter(goal => goal.length > 0)
+                          .map((goal, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full"
+                            >
+                              {goal}
+                            </span>
+                          ))
+                      ) : (
+                        <span className="text-gray-500 text-sm">Not specified</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -613,9 +645,42 @@ const MapPage = () => {
                   <p className="text-sm text-gray-700 break-words leading-relaxed">{selectedProject.stakeholders}</p>
                 </div>
               )}
+              
+              {selectedProject.attachmentUrls && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 mb-2">Attachments</h3>
+                  <div className="space-y-2">
+                    {selectedProject.attachmentUrls.split('\n').map((attachment, index) => {
+                      if (!attachment.trim()) return null
+                      
+                      const colonIndex = attachment.indexOf(': ')
+                      if (colonIndex === -1) return null
+                      
+                      const filename = attachment.substring(0, colonIndex).trim()
+                      const url = attachment.substring(colonIndex + 2).trim()
+                      
+                      return (
+                        <div key={index} className="flex items-center space-x-2">
+                          <i className="fas fa-paperclip text-blue-600 text-sm"></i>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
+                            title={filename}
+                          >
+                            {filename}
+                          </a>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           )}
+        </div>
         </div>
       )}
 
@@ -647,7 +712,7 @@ const MapPage = () => {
 
       {/* City Mode Project Details Center Popup */}
       {cityModeProjectPopupVisible && cityModeSelectedProject && (
-        <div className="fixed inset-0 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-300 bg-opacity-50 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(209, 213, 219, 0.5)' }}>
           <div className="bg-white rounded-lg shadow-xl border border-gray-200 w-[800px] max-h-[80vh] overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
@@ -709,7 +774,7 @@ const MapPage = () => {
                     <div>
                       <span className="text-gray-600 font-medium">End Date:</span>
                       <p className="text-gray-900 break-words mt-1">
-                        {cityModeSelectedProject.endDate ? new Date(cityModeSelectedProject.endDate).toLocaleDateString() : 'Not specified'}
+                        {cityModeSelectedProject.actualCompletionDate ? new Date(cityModeSelectedProject.actualCompletionDate).toLocaleDateString() : 'Not specified'}
                       </p>
                     </div>
                     <div>
@@ -737,10 +802,62 @@ const MapPage = () => {
                   </div>
                 )}
                 
+                {cityModeSelectedProject.metroCommon2050goals && (
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-3">MetroCommon 2050 Goals</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {cityModeSelectedProject.metroCommon2050goals
+                        .split(',')
+                        .map(goal => goal.trim())
+                        .filter(goal => goal.length > 0)
+                        .map((goal, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center px-3 py-1 text-sm font-medium bg-purple-100 text-purple-800 rounded-full"
+                          >
+                            {goal}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                )}
+                
                 {cityModeSelectedProject.stakeholders && (
                   <div>
                     <h3 className="text-lg font-medium text-gray-900 mb-3">Stakeholders</h3>
                     <p className="text-gray-700 break-words leading-relaxed">{cityModeSelectedProject.stakeholders}</p>
+                  </div>
+                )}
+                
+                {cityModeSelectedProject.attachmentUrls && (
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-3">Attachments</h3>
+                    <div className="space-y-2">
+                      {cityModeSelectedProject.attachmentUrls.split('\n').map((attachment, index) => {
+                        if (!attachment.trim()) return null
+                        
+                        const colonIndex = attachment.indexOf(': ')
+                        if (colonIndex === -1) return null
+                        
+                        const filename = attachment.substring(0, colonIndex).trim()
+                        const url = attachment.substring(colonIndex + 2).trim()
+                        
+                        return (
+                          <div key={index} className="flex items-center space-x-2">
+                            <i className="fas fa-paperclip text-blue-600 text-lg"></i>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
+                              title={filename}
+                            >
+                              {filename}
+                            </a>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
               </div>

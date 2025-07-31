@@ -4,12 +4,11 @@ import mapcLogo from '../assets/img/mapc-logo.png'
 const Navbar = () => {
   const navItems = [
     { path: '/', label: 'Dashboard' },
-    { path: '/projects', label: 'Projects'},
     { path: '/map', label: 'Map' },
   ]
 
   return (
-    <nav className="navbar shadow-sm border-b border-gray-200">
+    <nav className="navbar shadow-sm border-b border-gray-200 bg-white flex-shrink-0">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
           {/* Logo and Brand */}
@@ -33,12 +32,15 @@ const Navbar = () => {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center space-x-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  `flex items-center space-x-2 px-4 py-2 text-sm font-extrabold transition-colors ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'text-[#2862a0] font-extrabold border-b-4 border-[#2862a0]'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`
                 }
+                style={({ isActive }) => ({
+                  color: isActive ? '#2862a0' : undefined
+                })}
               >
                 <span>{item.label}</span>
               </NavLink>
@@ -55,12 +57,15 @@ const Navbar = () => {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center space-x-1 px-3 py-2 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
+                  `flex items-center space-x-1 px-3 py-2 text-xs font-extrabold whitespace-nowrap transition-colors ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'text-[#2862a0] font-extrabold border-b-4 border-[#2862a0]'
+                      : 'text-gray-600 hover:text-gray-900'
                   }`
                 }
+                style={({ isActive }) => ({
+                  color: isActive ? '#2862a0' : undefined
+                })}
               >
                 <span>{item.icon}</span>
                 <span>{item.label}</span>

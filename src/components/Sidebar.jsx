@@ -12,7 +12,8 @@ const Sidebar = ({
   selectedGeographicCount = null,
   onGeographicCountSelect = null,
   onProjectSelect = null,
-  selectedProject = null
+  selectedProject = null,
+  onSearchTermChange = null
 }) => {
   const dispatch = useDispatch()
   const categories = useSelector(selectProjectsCategories)
@@ -106,18 +107,6 @@ const Sidebar = ({
     })
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  // Filter categories based on search term and view mode
-  const filteredCategories = currentPage === 'map' 
-    ? (viewMode === 'geographicCount' && selectedGeographicCount 
-        ? geographicCountProjectCategories.filter(item => 
-            item.name.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-        : cityCategories.filter(city => 
-            city.name.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-      )
-    : cityCategories
-
   // Generate categories from project types
   const projectTypeCategories = categories.map((type, index) => {
     const count = allProjects.filter(project => project.projectType === type).length
@@ -156,8 +145,22 @@ const Sidebar = ({
     ...sortedCategories
   ]
 
+  // Filter categories based on search term and view mode
+  const filteredCategories = currentPage === 'map' 
+    ? (viewMode === 'geographicCount' && selectedGeographicCount 
+        ? geographicCountProjectCategories.filter(item => 
+            item.name.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+        : cityCategories.filter(city => 
+            city.name.toLowerCase().includes(searchTerm.toLowerCase())
+          )
+      )
+    : projectCategories.filter(category => 
+        category.name.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+
   // Use different data based on current page and view mode
-  const displayCategories = currentPage === 'map' ? filteredCategories : projectCategories
+  const displayCategories = currentPage === 'map' ? filteredCategories : filteredCategories
   const selectedItem = currentPage === 'map' 
     ? (viewMode === 'geographicCount' && selectedGeographicCount ? selectedProject?.id : selectedCity)
     : selectedCategory
@@ -174,6 +177,13 @@ const Sidebar = ({
   useEffect(() => {
     setSearchTerm('')
   }, [currentPage])
+
+  // Notify parent component when search term changes (for dashboard page)
+  useEffect(() => {
+    if (currentPage === 'dashboard' && onSearchTermChange) {
+      onSearchTermChange(searchTerm)
+    }
+  }, [searchTerm, currentPage, onSearchTermChange])
 
   const handleCategorySelect = (categoryId) => {
     if (currentPage === 'map') {
@@ -207,7 +217,7 @@ const Sidebar = ({
   }
 
   return (
-    <aside className={`sidebar shadow-sm border-r border-gray-200 h-full overflow-y-auto transition-all duration-300 ${
+    <aside className={`sidebar shadow-sm border-r border-gray-200 bg-white flex-shrink-0 h-full overflow-y-auto transition-all duration-300 ${
       isCollapsed ? 'w-12' : 'w-80'
     }`}>
       {isCollapsed ? (
@@ -281,28 +291,34 @@ const Sidebar = ({
               }
             </h3>
             
-            {/* Search Bar - Only show on map page */}
-            {currentPage === 'map' && (
-              <div className="mb-4">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder={viewMode === 'geographicCount' && selectedGeographicCount ? "Search projects..." : "Search cities..."}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-3 py-2 pl-8 text-sm text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                    <span className="text-gray-400 text-sm">🔍</span>
-                  </div>
+            {/* Search Bar - Show on both map and dashboard pages */}
+            <div className="mb-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder={
+                    currentPage === 'map' 
+                      ? (viewMode === 'geographicCount' && selectedGeographicCount ? "Search projects..." : "Search cities...")
+                      : "Search project categories..."
+                  }
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-3 py-2 pl-8 text-sm text-gray-900 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                  <i className="fas fa-search text-gray-400 text-sm"></i>
                 </div>
-                {searchTerm && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {filteredCategories.length} {viewMode === 'geographicCount' && selectedGeographicCount ? 'projects' : 'cities'} found
-                  </p>
-                )}
               </div>
-            )}
+              {searchTerm && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {filteredCategories.length} {
+                    currentPage === 'map' 
+                      ? (viewMode === 'geographicCount' && selectedGeographicCount ? 'projects' : 'cities')
+                      : 'categories'
+                  } found
+                </p>
+              )}
+            </div>
             
             <div className="space-y-2 max-h-96 overflow-y-auto overflow-x-hidden pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#CBD5E0 #F7FAFC' }}>
               {displayCategories.map((category) => (

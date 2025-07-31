@@ -5,9 +5,8 @@ import { Provider } from 'react-redux'
 import { store } from './store/store'
 import './index.css'
 import Root from './routes/root'
-import DashboardPage from '../src/pages/DashboardPage'
-import ProjectsPage from '../src/pages/ProjectsPage'
-import MapPage from '../src/pages/MapPage'
+import DashboardPage from './pages/DashboardPage'
+import MapPage from './pages/MapPage'
 
 
 
@@ -21,10 +20,6 @@ const routes = [
       {
         index: true,
         element: <DashboardPage />,
-      },
-      {
-        path: "projects/",
-        element: <ProjectsPage />,
       },
       {
         path: "map/",

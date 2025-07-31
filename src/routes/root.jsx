@@ -11,6 +11,7 @@ const Root = () => {
     const [viewMode, setViewMode] = useState('city')
     const [selectedGeographicCount, setSelectedGeographicCount] = useState(null)
     const [selectedProject, setSelectedProject] = useState(null)
+    const [sidebarSearchTerm, setSidebarSearchTerm] = useState('')
     const location = useLocation()
 
     // Determine current page
@@ -33,7 +34,7 @@ const Root = () => {
     return (
        <Layout>
         <Navbar />
-        <main className="flex flex-1">
+        <main className="flex flex-1 min-h-0">
             <Sidebar 
                 isCollapsed={isSidebarCollapsed} 
                 onToggle={toggleSidebar}
@@ -44,10 +45,9 @@ const Root = () => {
                 selectedGeographicCount={selectedGeographicCount}
                 onProjectSelect={setSelectedProject}
                 selectedProject={selectedProject}
+                onSearchTermChange={setSidebarSearchTerm}
             />
-            <div className={`flex-1 overflow-auto transition-all duration-300 ${
-                isSidebarCollapsed ? 'ml-0' : ''
-            }`}>
+            <div className={`flex-1 overflow-auto transition-all duration-300`}>
                 <Outlet context={{ 
                     selectedCity, 
                     setSelectedCity,
@@ -56,7 +56,9 @@ const Root = () => {
                     selectedGeographicCount,
                     setSelectedGeographicCount,
                     selectedProject,
-                    setSelectedProject
+                    setSelectedProject,
+                    isSidebarCollapsed,
+                    sidebarSearchTerm
                 }} />
             </div>
         </main>
