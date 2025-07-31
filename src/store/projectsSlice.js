@@ -69,6 +69,7 @@ export const fetchProjects = createAsyncThunk(
 
         // Map other fields
         const fieldMapping = {
+          recordId: "Record ID",
           projectStatus: "Project Status",
           projectDescription: "Project Description",
           projectType: "Type of Project",
@@ -80,7 +81,11 @@ export const fetchProjects = createAsyncThunk(
           leadDepartment: "Lead Department/Team",
           internalCollaborators: "Internal Collaborators (Dept and Teams Only)",
           projectYear: "Project Year",
-          startDate: "Start Date"
+          startDate: "Start Date",
+          anticipatedEndDate: "Anticipated End Date",
+          attachmentUrls: "Attachment URLs",
+          actualCompletionDate: "Actual Completion Date",
+          metroCommon2050goals: "MetroCommon 2050 Goals",
         }
 
         Object.entries(fieldMapping).forEach(([newKey, airtableField]) => {

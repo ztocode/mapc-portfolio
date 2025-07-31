@@ -1,6 +1,8 @@
 @import "tailwindcss";
+@import "@fortawesome/fontawesome-free/css/all.css";
 
 :root {
+  overflow: hidden;
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
@@ -19,6 +21,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 /* Basic CSS Reset */
