@@ -17,6 +17,9 @@ export const fetchProjects = createAsyncThunk(
       // Get environment variables
       const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID
       const apiKey = import.meta.env.VITE_AIRTABLE_API_KEY
+      let tableName = encodeURIComponent('MAPC Project (New)')
+      
+
 
       if (!baseId || !apiKey) {
         throw new Error('Missing Airtable environment variables')
@@ -36,7 +39,7 @@ export const fetchProjects = createAsyncThunk(
         pageCount++
 
         // Build the API URL with pagination
-        let url = `https://api.airtable.com/v0/${baseId}/MAPC Project (New)`
+        let url = `https://api.airtable.com/v0/${baseId}/${tableName}`
         if (offset) {
           url += `?offset=${offset}`
         }
