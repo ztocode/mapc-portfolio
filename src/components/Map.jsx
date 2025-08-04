@@ -370,7 +370,7 @@ const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities
 
   // Load Massachusetts towns GeoJSON
   useEffect(() => {
-    fetch('/src/assets/data/Massachusetts.geojson')
+    fetch('/data/Massachusetts.geojson')
       .then(response => response.json())
       .then(data => setGeojsonData(data))
       .catch(error => console.error('Error loading GeoJSON:', error));
@@ -378,7 +378,7 @@ const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities
 
   // Load MAPC subregion GeoJSON
   useEffect(() => {
-    fetch('/src/assets/data/MAPC_Subregions.geojson')
+    fetch('/data/MAPC_Subregions.geojson')
       .then(response => response.json())
       .then(data => setSubregionData(data))
       .catch(error => console.error('Error loading Subregion GeoJSON:', error));
