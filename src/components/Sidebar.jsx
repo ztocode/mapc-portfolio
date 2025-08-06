@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { setSelectedCategory, selectProjectsCategories, selectSelectedCategory, selectAllProjects } from '../store/projectsSlice'
+import { useSelector } from 'react-redux'
+import { selectAllProjects } from '../store/projectsSlice'
 
 const Sidebar = ({ 
   isCollapsed = false, 
@@ -15,9 +15,11 @@ const Sidebar = ({
   selectedProject = null,
   onSearchTermChange = null
 }) => {
-  const dispatch = useDispatch()
-  const categories = useSelector(selectProjectsCategories)
-  const selectedCategory = useSelector(selectSelectedCategory)
+  // Don't render sidebar for dashboard page or year view mode
+  if (currentPage === 'dashboard' || viewMode === 'year') {
+    return null
+  }
+
   const allProjects = useSelector(selectAllProjects)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -98,52 +100,14 @@ const Sidebar = ({
       return {
         id: project.id,
         name: project.name || 'Unnamed Project',
-        description: shortDescription, // For header
-        fullDescription: fullDescription, // For scrollable list
+        description: shortDescription,
+        fullDescription: fullDescription,
         color: 'bg-green-500',
         count: 1,
         project: project // Store the full project object
       }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
-
-  // Generate categories from project types
-  const projectTypeCategories = categories.map((type, index) => {
-    const count = allProjects.filter(project => project.projectType === type).length
-    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-indigo-500', 'bg-pink-500', 'bg-yellow-500']
-    
-    return {
-      id: type,
-      name: type,
-      description: `Projects of type: ${type}`,
-      color: colors[index % colors.length],
-      count: count
-    }
-  })
-
-  // Add "Others" category for undefined/null project types
-  const othersCategory = {
-    id: 'others',
-    name: 'Others',
-    description: 'Projects with undefined or missing type',
-    color: 'bg-gray-400',
-    count: allProjects.filter(project => !project.projectType || project.projectType === '').length
-  }
-
-  // Sort categories by count in descending order (excluding "All Projects")
-  const sortedCategories = [...projectTypeCategories, othersCategory].sort((a, b) => b.count - a.count)
-
-  // Combine "All Projects" with sorted categories
-  const projectCategories = [
-    {
-      id: 'all',
-      name: 'All Projects',
-      description: 'View all projects across all types',
-      color: 'bg-gray-500',
-      count: allProjects.length
-    },
-    ...sortedCategories
-  ]
 
   // Filter categories based on search term and view mode
   const filteredCategories = currentPage === 'map' 
@@ -155,15 +119,13 @@ const Sidebar = ({
             city.name.toLowerCase().includes(searchTerm.toLowerCase())
           )
       )
-    : projectCategories.filter(category => 
-        category.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+    : [] // No categories for dashboard page
 
   // Use different data based on current page and view mode
-  const displayCategories = currentPage === 'map' ? filteredCategories : filteredCategories
+  const displayCategories = filteredCategories
   const selectedItem = currentPage === 'map' 
     ? (viewMode === 'geographicCount' && selectedGeographicCount ? selectedProject?.id : selectedCity)
-    : selectedCategory
+    : null
   const selectedItemData = displayCategories.find(c => c.id === selectedItem) || 
     (displayCategories.length > 0 ? displayCategories[0] : {
       id: 'none',
@@ -201,9 +163,6 @@ const Sidebar = ({
         }
         console.log('Selected city:', categoryId)
       }
-    } else {
-      dispatch(setSelectedCategory(categoryId))
-      console.log('Selected category:', categoryId)
     }
   }
 

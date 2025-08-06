@@ -15,8 +15,7 @@ const BreakdownCard = ({
   setClickedCategoryType,
   setDepartmentProjects,
   setShowDepartmentPopup,
-  timeView = 'historical',
-  selectedCategory = 'all'
+  timeView = 'historical'
 }) => {
   const colorClasses = {
     blue: 'bg-blue-100 text-blue-800',
@@ -82,15 +81,6 @@ const BreakdownCard = ({
         })
       }
 
-      // Apply category filter
-      if (selectedCategory !== 'all') {
-        if (selectedCategory === 'others') {
-          targetProjects = targetProjects.filter(p => !p.projectType || p.projectType === '' || p.projectType === null)
-        } else {
-          targetProjects = targetProjects.filter(p => p.projectType === selectedCategory)
-        }
-      }
-
       // Filter projects by department
       filteredProjects = targetProjects.filter(project => {
         const dept = project.leadDepartment || 'Not Assigned'
@@ -141,15 +131,6 @@ const BreakdownCard = ({
                  project.projectYear.toString().trim() === '' ||
                  isNaN(parseInt(project.projectYear.toString().trim()))
         })
-      }
-
-      // Apply category filter
-      if (selectedCategory !== 'all') {
-        if (selectedCategory === 'others') {
-          targetProjects = targetProjects.filter(p => !p.projectType || p.projectType === '' || p.projectType === null)
-        } else {
-          targetProjects = targetProjects.filter(p => p.projectType === selectedCategory)
-        }
       }
 
       // Filter projects by type

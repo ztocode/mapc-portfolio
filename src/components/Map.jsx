@@ -2,7 +2,19 @@ import { useState, useEffect, useRef } from 'react'
 import { Map, NavigationControl, Source, Layer, Popup } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities = [], cityColors = {}, viewMode = 'city', selectedProject = null, onCityNotFound = null }) => {
+const MapComponent = ({ 
+  data = [], 
+  onCitySelect, 
+  selectedCity, 
+  highlightedCities = [], 
+  cityColors = {}, 
+  viewMode = 'city', 
+  selectedProject = null, 
+  onCityNotFound = null,
+  choroplethData = null,
+  selectedYear = null,
+  onMunicipalityClick = null
+}) => {
   const [viewState, setViewState] = useState({
     longitude: -71.0589,
     latitude: 42.3601,
@@ -405,7 +417,14 @@ const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities
     const { features } = event;
     const clickedFeature = features && features[0];
     if (clickedFeature && clickedFeature.properties && clickedFeature.properties.town) {
-      if (onCitySelect) onCitySelect(clickedFeature.properties.town);
+      if (viewMode === 'year' && onMunicipalityClick) {
+        // In year view, only allow clicking on municipalities with projects
+        if (clickedFeature.properties.projectCount > 0) {
+          onMunicipalityClick(clickedFeature.properties.town);
+        }
+      } else if (onCitySelect) {
+        onCitySelect(clickedFeature.properties.town);
+      }
     }
   };
 
@@ -430,7 +449,7 @@ const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities
         style={{ width: '100%', height: '100%' }}
         mapStyle="mapbox://styles/mapbox/light-v11"
         mapboxAccessToken={MAPBOX_TOKEN}
-        interactiveLayerIds={['massachusetts-interactive']}
+        interactiveLayerIds={viewMode === 'year' && choroplethData ? ['massachusetts-choropleth', 'massachusetts-interactive'] : ['massachusetts-interactive']}
         onMouseMove={onHover}
         onClick={handleMapClick}
         cursor={cursor}
@@ -459,7 +478,24 @@ const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities
         )}
         {/* Massachusetts Towns Layer */}
         {geojsonData && (
-          <Source id="massachusetts" type="geojson" data={geojsonData}>
+          <Source id="massachusetts" type="geojson" data={choroplethData || geojsonData}>
+            {/* Choropleth fill layer for year view */}
+            {viewMode === 'year' && choroplethData && (
+              <Layer
+                id="massachusetts-choropleth"
+                type="fill"
+                paint={{
+                  'fill-color': [
+                    'case',
+                    ['==', ['get', 'projectCount'], 0],
+                    'transparent',
+                    ['get', 'choroplethColor']
+                  ],
+                  'fill-opacity': 0.7
+                }}
+                filter={['has', 'town']}
+              />
+            )}
             {/* Transparent fill layer for interaction */}
             <Layer
               id="massachusetts-interactive"
@@ -468,6 +504,7 @@ const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities
                 'fill-color': '#000',
                 'fill-opacity': 0
               }}
+              filter={viewMode === 'year' && choroplethData ? ['>', ['get', 'projectCount'], 0] : ['has', 'town']}
             />
             {/* Highlight fill layer for hovered polygon */}
             <Layer
@@ -556,7 +593,14 @@ const MapComponent = ({ data = [], onCitySelect, selectedCity, highlightedCities
               transform: 'translate(-50%, -100%)'
             }}
           >
-            {hoverInfo.feature.properties.town}
+            <div>
+              {hoverInfo.feature.properties.town}
+              {viewMode === 'year' && hoverInfo.feature.properties.projectCount !== undefined && (
+                <div className="text-xs mt-1">
+                  {hoverInfo.feature.properties.projectCount} project{hoverInfo.feature.properties.projectCount !== 1 ? 's' : ''} ({selectedYear})
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Map>

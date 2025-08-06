@@ -11,11 +11,33 @@ const Root = () => {
     const [viewMode, setViewMode] = useState('city')
     const [selectedGeographicCount, setSelectedGeographicCount] = useState(null)
     const [selectedProject, setSelectedProject] = useState(null)
-    const [sidebarSearchTerm, setSidebarSearchTerm] = useState('')
+    const [tableSearchTerm, setTableSearchTerm] = useState('')
+    const [selectedDepartments, setSelectedDepartments] = useState([])
+    const [selectedProjectTypes, setSelectedProjectTypes] = useState([])
+    const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false)
+    const [showProjectTypeDropdown, setShowProjectTypeDropdown] = useState(false)
+    const [selectedDepartment, setSelectedDepartment] = useState(null)
+    const [departmentProjects, setDepartmentProjects] = useState([])
+    const [showDepartmentPopup, setShowDepartmentPopup] = useState(false)
+    const [selectedYears, setSelectedYears] = useState([])
+    const [showYearDropdown, setShowYearDropdown] = useState(false)
+    const [selectedStatuses, setSelectedStatuses] = useState([])
+    const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+    const [clickedCategoryType, setClickedCategoryType] = useState('')
+    const [timeView, setTimeView] = useState('historical')
+    const [mapcSubregionsData, setMapcSubregionsData] = useState(null)
     const location = useLocation()
 
     // Determine current page
     const currentPage = location.pathname === '/map' ? 'map' : 'dashboard'
+
+    // Load MAPC Subregions GeoJSON
+    useEffect(() => {
+        fetch('/data/MAPC_Subregions.geojson')
+            .then(response => response.json())
+            .then(data => setMapcSubregionsData(data))
+            .catch(error => console.error('Error loading MAPC Subregions GeoJSON:', error))
+    }, [])
 
     // Reset selected city when leaving map page
     useEffect(() => {
@@ -45,7 +67,7 @@ const Root = () => {
                 selectedGeographicCount={selectedGeographicCount}
                 onProjectSelect={setSelectedProject}
                 selectedProject={selectedProject}
-                onSearchTermChange={setSidebarSearchTerm}
+                mapcSubregionsData={mapcSubregionsData}
             />
             <div className={`flex-1 overflow-auto transition-all duration-300`}>
                 <Outlet context={{ 
@@ -58,7 +80,6 @@ const Root = () => {
                     selectedProject,
                     setSelectedProject,
                     isSidebarCollapsed,
-                    sidebarSearchTerm
                 }} />
             </div>
         </main>
