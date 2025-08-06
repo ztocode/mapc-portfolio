@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { useOutletContext } from 'react-router-dom'
-import { fetchProjects, selectAllProjects, selectProjectsLoading, selectProjectsError, selectLastFetch, selectSelectedCategory } from '../store/projectsSlice'
+import { fetchProjects, selectAllProjects, selectProjectsLoading, selectProjectsError, selectLastFetch } from '../store/projectsSlice'
 import ProjectsTable from '../components/ProjectsTable'
 import BreakdownCard from '../components/BreakdownCard'
+import ProjectByDepartmentChart from '../components/projectByDepartmentChart'
+import MunicipalCollaborationChart from '../components/municipalCollaborationChart'
 
 const DashboardPage = () => {
-  const { sidebarSearchTerm } = useOutletContext()
   const dispatch = useDispatch()
   const projects = useSelector(selectAllProjects)
-  const selectedCategory = useSelector(selectSelectedCategory)
   const loading = useSelector(selectProjectsLoading)
   const error = useSelector(selectProjectsError)
   
@@ -41,12 +41,8 @@ const DashboardPage = () => {
   }, [dispatch])
 
   useEffect(() => {
-    // Filter projects based on selected category
-    const filteredProjects = selectedCategory === 'all' 
-      ? projects || []
-      : selectedCategory === 'others'
-      ? projects?.filter(p => !p.projectType || p.projectType === '' || p.projectType === null) || []
-      : projects?.filter(p => p.projectType === selectedCategory) || []
+    // Use all projects instead of filtering by category
+    const filteredProjects = projects || []
 
     const currentYear = new Date().getFullYear()
     
@@ -61,7 +57,7 @@ const DashboardPage = () => {
         projectCount: { 
           total: 0,
           active: 0,
-          category: selectedCategory === 'all' ? 'All Projects' : selectedCategory
+          category: 'All Projects'
         },
         statusBreakdown: {},
         typeBreakdown: {},
@@ -201,7 +197,7 @@ const DashboardPage = () => {
       projectCount: { 
         total: currentYearProjects.length,
         active: currentYearActiveProjects.length,
-        category: selectedCategory === 'all' ? 'All Projects' : selectedCategory
+        category: 'All Projects'
       },
       statusBreakdown: allProjectsStatusBreakdown, // Use all projects status breakdown
       typeBreakdown: currentYearTypeBreakdown,
@@ -213,7 +209,7 @@ const DashboardPage = () => {
       projectCount: { 
         total: historicalProjects.length,
         active: historicalActiveProjects.length,
-        category: selectedCategory === 'all' ? 'All Projects' : selectedCategory
+        category: 'All Projects'
       },
       statusBreakdown: allProjectsStatusBreakdown, // Use all projects status breakdown
       typeBreakdown: historicalTypeBreakdown,
@@ -222,10 +218,10 @@ const DashboardPage = () => {
 
     // Set missing data
     setMissingData({
-      projectCount: {
+      projectCount: { 
         total: missingYearProjects.length,
         active: missingYearProjects.filter(p => activeStatuses.some(status => (p.projectStatus || 'Unknown').toLowerCase().includes(status.toLowerCase()))).length,
-        category: selectedCategory === 'all' ? 'All Projects' : selectedCategory
+        category: 'All Projects'
       },
       statusBreakdown: missingYearProjects.reduce((acc, project) => {
         const status = project.projectStatus || 'Unknown'
@@ -258,7 +254,7 @@ const DashboardPage = () => {
     
     setYearlyData(yearlyChartData)
 
-  }, [projects, selectedCategory, timeView])
+  }, [projects, timeView])
 
   // Update metrics when time view changes
   useEffect(() => {
@@ -310,17 +306,12 @@ const DashboardPage = () => {
     } else if (timeView === 'missing') {
       // Filter for projects with missing project years
       targetProjects = projects.filter(project => {
-        return !project.projectYear || project.projectYear.toString().trim() === 'null' || project.projectYear.toString().trim() === 'undefined' || project.projectYear.toString().trim() === ''
+        return !project.projectYear || 
+               project.projectYear.toString().trim() === 'null' || 
+               project.projectYear.toString().trim() === 'undefined' || 
+               project.projectYear.toString().trim() === '' ||
+               isNaN(parseInt(project.projectYear.toString().trim()))
       })
-    }
-
-    // Apply category filter
-    if (selectedCategory !== 'all') {
-      if (selectedCategory === 'others') {
-        targetProjects = targetProjects.filter(p => !p.projectType || p.projectType === '' || p.projectType === null)
-      } else {
-        targetProjects = targetProjects.filter(p => p.projectType === selectedCategory)
-      }
     }
 
     return targetProjects.filter(project => {
@@ -417,15 +408,6 @@ const DashboardPage = () => {
     setSelectedStatuses([])
   }
 
-  // Clear table filters when category changes
-  useEffect(() => {
-    clearAllFilters()
-    // Keep the current year view selection when changing categories
-    // Don't reset timeView here
-  }, [selectedCategory])
-
-
-
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -517,21 +499,12 @@ const DashboardPage = () => {
         })
       }
 
-      // Apply category filter
-      if (selectedCategory !== 'all') {
-        if (selectedCategory === 'others') {
-          filteredProjects = filteredProjects.filter(p => !p.projectType || p.projectType === '' || p.projectType === null)
-        } else {
-          filteredProjects = filteredProjects.filter(p => p.projectType === selectedCategory)
-        }
-      }
-
       setSelectedDepartment(status)
       setClickedCategoryType('Status')
       setDepartmentProjects(filteredProjects)
       setShowDepartmentPopup(true)
     }
-    
+
     return (
       <div className="flex flex-wrap gap-3 sm:gap-4 lg:gap-6 justify-center">
         {statusValues.map((status, index) => (
@@ -549,19 +522,15 @@ const DashboardPage = () => {
                      index % 5 === 2 ? 'yellow' : 
                      index % 5 === 3 ? 'purple' : 'red'}
             />
-          </div>
-        ))}
+            </div>
+          ))}
       </div>
     )
   }
 
   const YearlyBreakdownCard = () => {
-    // Get the correct projects based on selected category
-    const filteredProjects = selectedCategory === 'all' 
-      ? projects || []
-      : selectedCategory === 'others'
-      ? projects?.filter(p => !p.projectType || p.projectType === '' || p.projectType === null) || []
-      : projects?.filter(p => p.projectType === selectedCategory) || []
+    // Use all projects instead of filtering by category
+    const filteredProjects = projects || []
 
     // Convert yearly data to breakdown format based on time view
     let yearlyBreakdown = {}
@@ -613,8 +582,8 @@ const DashboardPage = () => {
 
       yearlyBreakdown = Object.entries(yearlyProjects).reduce((acc, [year, projects]) => {
         acc[year] = projects.length
-        return acc
-      }, {})
+      return acc
+    }, {})
     } else if (timeView === 'missing') {
       // Missing year: show empty since these projects don't have valid years
       yearlyBreakdown = {}
@@ -649,12 +618,12 @@ const DashboardPage = () => {
 
     return (
       <div className="cursor-pointer">
-        <BreakdownCard
-          title="Project Distribution by Year"
-          data={yearlyBreakdown}
-          color="blue"
-          sortNumeric={true}
-          scrollable={true}
+      <BreakdownCard
+        title="Project Distribution by Year"
+        data={yearlyBreakdown}
+        color="blue"
+        sortNumeric={true}
+        scrollable={true}
           onItemClick={handleYearClick}
           projects={filteredProjects}
           setSelectedDepartment={setSelectedDepartment}
@@ -752,7 +721,6 @@ const DashboardPage = () => {
             setDepartmentProjects={setDepartmentProjects}
             setShowDepartmentPopup={setShowDepartmentPopup}
             timeView={timeView}
-            selectedCategory={selectedCategory}
           />
           <BreakdownCard
             title="Departments"
@@ -767,9 +735,18 @@ const DashboardPage = () => {
             setDepartmentProjects={setDepartmentProjects}
             setShowDepartmentPopup={setShowDepartmentPopup}
             timeView={timeView}
-            selectedCategory={selectedCategory}
           />
           <YearlyBreakdownCard />
+        </div>
+
+        {/* Project by Department Chart */}
+        <div className="mt-8">
+          <ProjectByDepartmentChart />
+        </div>
+
+        {/* Municipal Collaboration Chart */}
+        <div className="mt-8">
+          <MunicipalCollaborationChart />
         </div>
       </div>
     )
@@ -777,17 +754,6 @@ const DashboardPage = () => {
 
   const TableView = () => (
     <div>
-      {/* Category Info */}
-      {selectedCategory !== 'all' && (
-        <div className="mb-4 sm:mb-6">
-          <div className="text-xs sm:text-sm text-gray-600">
-            Showing projects for: <span className="font-medium">{selectedCategory}</span>
-          </div>
-        </div>
-      )}
-
-
-
       {/* Table Filters */}
       <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <div className="flex flex-row gap-4">
@@ -973,9 +939,9 @@ const DashboardPage = () => {
                   </button>
                 </span>
               ))}
-            </div>
           </div>
-        )}
+        </div>
+      )}
       </div>
 
       {/* Projects Table */}
@@ -1031,33 +997,33 @@ const DashboardPage = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Dashboard</h1>
           <div className="flex items-center justify-between mt-1 sm:mt-2 w-full">
             <p className="text-gray-600">Project Portfolio</p>
-            
-            {/* View Toggle */}
+          
+          {/* View Toggle */}
             <div className="flex bg-gray-100 rounded-lg p-1 w-48">
-              <button
-                onClick={() => setViewMode('statistics')}
+            <button
+              onClick={() => setViewMode('statistics')}
                 className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  viewMode === 'statistics'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Statistics
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
+                viewMode === 'statistics'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Statistics
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
                 className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  viewMode === 'table'
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Table
-              </button>
-            </div>
+                viewMode === 'table'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Table
+            </button>
           </div>
         </div>
       </div>
+        </div>
 
 
       {/* Dynamic Content Based on View Mode */}

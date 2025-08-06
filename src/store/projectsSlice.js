@@ -20,7 +20,6 @@ export const fetchProjects = createAsyncThunk(
       let tableName = encodeURIComponent('MAPC Project (New)')
       
 
-
       if (!baseId || !apiKey) {
         throw new Error('Missing Airtable environment variables')
       }
@@ -121,14 +120,9 @@ const projectsSlice = createSlice({
     error: null,
     lastFetch: null,
     cacheDuration: 5 * 60 * 1000, // 5 minutes in milliseconds
-    categories: [],
-    selectedCategory: 'all',
     viewMode: 'dashboard' // 'dashboard' or 'table'
   },
   reducers: {
-    setSelectedCategory: (state, action) => {
-      state.selectedCategory = action.payload
-    },
     setViewMode: (state, action) => {
       state.viewMode = action.payload
     },
@@ -149,14 +143,6 @@ const projectsSlice = createSlice({
         if (action.payload !== null) {
           state.data = action.payload
           state.lastFetch = Date.now()
-          
-          // Extract unique project types for categories
-          const projectTypes = [...new Set(
-            action.payload
-              .map(project => project.projectType)
-              .filter(type => type) // Remove null/undefined values
-          )]
-          state.categories = projectTypes
         }
       })
       .addCase(fetchProjects.rejected, (state, action) => {
@@ -166,27 +152,13 @@ const projectsSlice = createSlice({
   }
 })
 
-export const { setSelectedCategory, setViewMode, clearCache } = projectsSlice.actions
+export const { setViewMode, clearCache } = projectsSlice.actions
 
 // Selectors
 export const selectAllProjects = (state) => state.projects.data
 export const selectProjectsLoading = (state) => state.projects.loading
 export const selectProjectsError = (state) => state.projects.error
-export const selectProjectsCategories = (state) => state.projects.categories
-export const selectSelectedCategory = (state) => state.projects.selectedCategory
 export const selectLastFetch = (state) => state.projects.lastFetch
 export const selectViewMode = (state) => state.projects.viewMode
 
-// Filtered projects selector
-export const selectFilteredProjects = (state) => {
-  const { data, selectedCategory } = state.projects
-  if (selectedCategory === 'all') {
-    return data
-  }
-  if (selectedCategory === 'others') {
-    return data.filter(project => !project.projectType || project.projectType === '')
-  }
-  return data.filter(project => project.projectType === selectedCategory)
-}
-
-export default projectsSlice.reducer 
+export default projectsSlice.reducer
