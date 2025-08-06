@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useSelector } from 'react-redux'
-import { selectFilteredProjects } from '../store/projectsSlice'
+import { selectAllProjects } from '../store/projectsSlice'
 
 
 
 const ProjectsTable = ({ projects: overrideProjects, onProjectSelect = null, selectedProject = null, disableProjectSelection = false, onCityModeProjectClick = null, searchTerm = '', departmentFilter = [], yearFilter = [], statusFilter = [] }) => {
-  const allProjects = overrideProjects || useSelector(selectFilteredProjects)
+  const allProjects = overrideProjects || useSelector(selectAllProjects)
   const [selectedProjectDetails, setSelectedProjectDetails] = useState(null)
   
   // Filter projects based on search term and other filters
