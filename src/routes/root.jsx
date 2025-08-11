@@ -53,23 +53,28 @@ const Root = () => {
         setIsSidebarCollapsed(!isSidebarCollapsed)
     }
 
+    // Check if sidebar should be visible
+    const isSidebarVisible = currentPage !== 'dashboard' && viewMode !== 'year'
+
     return (
        <Layout>
         <Navbar />
         <main className="flex flex-1 min-h-0">
-            <Sidebar 
-                isCollapsed={isSidebarCollapsed} 
-                onToggle={toggleSidebar}
-                currentPage={currentPage}
-                selectedCity={selectedCity}
-                onCitySelect={setSelectedCity}
-                viewMode={viewMode}
-                selectedGeographicCount={selectedGeographicCount}
-                onProjectSelect={setSelectedProject}
-                selectedProject={selectedProject}
-                mapcSubregionsData={mapcSubregionsData}
-            />
-            <div className={`flex-1 overflow-auto transition-all duration-300`}>
+            {isSidebarVisible && (
+                <Sidebar 
+                    isCollapsed={isSidebarCollapsed} 
+                    onToggle={toggleSidebar}
+                    currentPage={currentPage}
+                    selectedCity={selectedCity}
+                    onCitySelect={setSelectedCity}
+                    viewMode={viewMode}
+                    selectedGeographicCount={selectedGeographicCount}
+                    onProjectSelect={setSelectedProject}
+                    selectedProject={selectedProject}
+                    mapcSubregionsData={mapcSubregionsData}
+                />
+            )}
+            <div className={`flex-1 transition-all duration-300 ${!isSidebarVisible ? 'w-full' : ''}`} style={!isSidebarVisible ? { width: '100vw' } : {}}>
                 <Outlet context={{ 
                     selectedCity, 
                     setSelectedCity,

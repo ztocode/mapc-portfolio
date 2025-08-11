@@ -13,7 +13,8 @@ const MapComponent = ({
   onCityNotFound = null,
   choroplethData = null,
   selectedYear = null,
-  onMunicipalityClick = null
+  onMunicipalityClick = null,
+  isSidebarCollapsed = false
 }) => {
   const [viewState, setViewState] = useState({
     longitude: -71.0589,
@@ -27,6 +28,9 @@ const MapComponent = ({
   const [showSubregionLayer, setShowSubregionLayer] = useState(true);
   const [popupInfo, setPopupInfo] = useState(null);
   const lastAlertedCities = useRef('');
+  const mapRef = useRef(null);
+
+  // Map will automatically resize when container width changes
 
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
@@ -453,6 +457,7 @@ const MapComponent = ({
         onMouseMove={onHover}
         onClick={handleMapClick}
         cursor={cursor}
+        ref={mapRef}
       >
         <NavigationControl position="top-right" />
         {/* MAPC Subregion Layer */}

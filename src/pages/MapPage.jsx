@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux'
 import { useDispatch } from 'react-redux'
 import { selectAllProjects, fetchProjects, selectProjectsLoading, selectProjectsError } from '../store/projectsSlice'
 import ProjectsTable from '../components/ProjectsTable'
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useState, useRef } from 'react'
 import { useOutletContext } from 'react-router-dom'
 
 const MapPage = () => {
@@ -36,6 +36,9 @@ const MapPage = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [isProjectDragging, setIsProjectDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  
+  // Ref to track if alert was manually closed
+  const alertManuallyClosed = useRef(false)
   
   // View by Year state
   const [selectedYear, setSelectedYear] = useState(null)
@@ -505,13 +508,19 @@ const MapPage = () => {
       clearTimeout(cityNotFoundTimeoutId)
     }
     
+    // Reset manual close flag
+    alertManuallyClosed.current = false
+    
     setCityNotFoundName(cityName)
     setCityNotFoundAlertVisible(true)
     
     // Auto-hide alert after 3 seconds
     const timeoutId = setTimeout(() => {
-      setCityNotFoundAlertVisible(false)
-      setCityNotFoundName('')
+      // Only hide if not manually closed
+      if (!alertManuallyClosed.current) {
+        setCityNotFoundAlertVisible(false)
+        setCityNotFoundName('')
+      }
       setCityNotFoundTimeoutId(null)
     }, 3000)
     
@@ -520,14 +529,23 @@ const MapPage = () => {
 
   // Handle manual close of city not found alert
   const handleCloseCityNotFoundAlert = () => {
-    // Clear the timeout
+    console.log('handleCloseCityNotFoundAlert called');
+    console.log('Current cityNotFoundAlertVisible:', cityNotFoundAlertVisible);
+    
+    // Set manual close flag
+    alertManuallyClosed.current = true
+    
+    // Clear the timeout FIRST
     if (cityNotFoundTimeoutId) {
       clearTimeout(cityNotFoundTimeoutId)
       setCityNotFoundTimeoutId(null)
     }
     
+    // Set both states in one go to prevent conflicts
     setCityNotFoundAlertVisible(false)
     setCityNotFoundName('')
+    
+    console.log('State should be updated to false');
   }
 
   // Handle mouse down for dragging
@@ -642,6 +660,11 @@ const MapPage = () => {
     </div>
   )
 
+  // Debug effect to monitor alert state
+  useEffect(() => {
+    console.log('Alert visibility changed to:', cityNotFoundAlertVisible);
+  }, [cityNotFoundAlertVisible]);
+
   // Debug effect to check choropleth data
   useEffect(() => {
     if (viewMode === 'year' && selectedYear && geojsonData) {
@@ -679,198 +702,202 @@ const MapPage = () => {
   }, [viewMode, selectedYear, geojsonData, massachusettsProjects])
 
   return (
-    <div className="flex flex-col w-full h-full p-6">
+    <div className="flex flex-col w-full h-full">
       {/* Loading Mask */}
       {loading && <LoadingMask />}
       
       {/* Error Display */}
       {error && <ErrorDisplay />}
       
-      {/* View Mode Toggle */}
-      <div className="mb-4">
-        <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
-          <button
-            onClick={() => handleViewModeChange('city')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              viewMode === 'city'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            View by Municipality
-          </button>
-          <button
-            onClick={() => handleViewModeChange('geographicCount')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              viewMode === 'geographicCount'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            View by Number of Municipal Collaborations
-          </button>
-          <button
-            onClick={() => handleViewModeChange('year')}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              viewMode === 'year'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            View by Year
-          </button>
-        </div>
-      </div>
-
-      {/* Geographic Count Filter */}
-      {viewMode === 'geographicCount' && (
+      {/* Controls Section with padding */}
+      <div className="px-6 pt-6 pb-0 flex-shrink-0">
+        {/* View Mode Toggle */}
         <div className="mb-4">
-          <div className="flex space-x-2">
+          <div className="flex bg-gray-100 rounded-lg p-1 w-fit">
             <button
-              onClick={() => handleGeographicCountSelect(1)}
+              onClick={() => handleViewModeChange('city')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                selectedGeographicCount === 1
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                viewMode === 'city'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              1 Municipal Collaboration ({projectsWithGeographicCount.filter(p => p.geographicFocusCount === 1).length})
+              View by Municipality
             </button>
             <button
-              onClick={() => handleGeographicCountSelect(2)}
+              onClick={() => handleViewModeChange('geographicCount')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                selectedGeographicCount === 2
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                viewMode === 'geographicCount'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              2 Municipal Collaboration ({projectsWithGeographicCount.filter(p => p.geographicFocusCount === 2).length})
+              View by Number of Municipal Collaborations
             </button>
             <button
-              onClick={() => handleGeographicCountSelect('3+')}
+              onClick={() => handleViewModeChange('year')}
               className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                selectedGeographicCount === '3+'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                viewMode === 'year'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              3+ Municipal Collaboration ({projectsWithGeographicCount.filter(p => p.geographicFocusCount >= 3).length})
+              View by Year
             </button>
           </div>
         </div>
-      )}
 
-              {/* Year Filter */}
-      {viewMode === 'year' && (
-        <div className="mb-4 space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Select Year</h3>
-            <div className="flex flex-wrap gap-2">
-              {availableYears.map(year => (
-                <button
-                  key={year}
-                  onClick={() => handleYearSelect(year)}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    selectedYear === year
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {year} ({getMunicipalitySpecificProjectCountForYear(year)})
-                </button>
-              ))}
+        {/* Geographic Count Filter */}
+        {viewMode === 'geographicCount' && (
+          <div className="mb-4">
+            <div className="flex space-x-2">
+              <button
+                onClick={() => handleGeographicCountSelect(1)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  selectedGeographicCount === 1
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                1 Municipal Collaboration ({projectsWithGeographicCount.filter(p => p.geographicFocusCount === 1).length})
+              </button>
+              <button
+                onClick={() => handleGeographicCountSelect(2)}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  selectedGeographicCount === 2
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                2 Municipal Collaboration ({projectsWithGeographicCount.filter(p => p.geographicFocusCount === 2).length})
+              </button>
+              <button
+                onClick={() => handleGeographicCountSelect('3+')}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  selectedGeographicCount === '3+'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                3+ Municipal Collaboration ({projectsWithGeographicCount.filter(p => p.geographicFocusCount >= 3).length})
+              </button>
             </div>
           </div>
-          
-          {/* Outside Massachusetts Projects and State-wide/Region-wide Projects */}
-          {selectedYear && (
-            (() => {
-              // Combine outside projects with state-wide/region-wide projects for display
-              const outsideProjects = outsideProjectsByYear[selectedYear] || []
-              const stateWideRegionWideProjects = massachusettsProjects.filter(project => {
-                if (!project.projectYear) return false
-                const projectYear = parseInt(project.projectYear)
-                if (isNaN(projectYear) || projectYear !== selectedYear) return false
+        )}
+
+                {/* Year Filter */}
+        {viewMode === 'year' && (
+          <div className="mb-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Select Year</h3>
+              <div className="flex flex-wrap gap-2">
+                {availableYears.map(year => (
+                  <button
+                    key={year}
+                    onClick={() => handleYearSelect(year)}
+                    className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                      selectedYear === year
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    {year} ({getMunicipalitySpecificProjectCountForYear(year)})
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Outside Massachusetts Projects and State-wide/Region-wide Projects */}
+            {selectedYear && (
+              (() => {
+                // Combine outside projects with state-wide/region-wide projects for display
+                const outsideProjects = outsideProjectsByYear[selectedYear] || []
+                const stateWideRegionWideProjects = massachusettsProjects.filter(project => {
+                  if (!project.projectYear) return false
+                  const projectYear = parseInt(project.projectYear)
+                  if (isNaN(projectYear) || projectYear !== selectedYear) return false
+                  
+                  if (project.geographicFocus && typeof project.geographicFocus === 'string') {
+                    const geoFocus = project.geographicFocus.toLowerCase()
+                    return geoFocus.includes('state-wide') || geoFocus.includes('mapc region-wide')
+                  }
+                  return false
+                })
                 
-                if (project.geographicFocus && typeof project.geographicFocus === 'string') {
-                  const geoFocus = project.geographicFocus.toLowerCase()
-                  return geoFocus.includes('state-wide') || geoFocus.includes('mapc region-wide')
-                }
-                return false
-              })
-              
-              const combinedProjects = [...outsideProjects, ...stateWideRegionWideProjects]
-              
-              return combinedProjects.length > 0 ? (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">
-                    Projects not included in map coloring ({selectedYear}) - {combinedProjects.length} projects
-                  </h3>
-                  <div className="bg-gray-50 rounded-lg p-4 max-h-40 overflow-y-auto">
-                    <div className="space-y-2">
-                      {combinedProjects.map(project => (
-                        <div 
-                          key={project.id} 
-                          className="flex items-center justify-between text-sm p-2 rounded hover:bg-gray-100 cursor-pointer transition-colors"
-                          onClick={() => {
-                            // Calculate geographic focus count for the project
-                            let geographicFocusCount = 0
-                            if (project.geographicFocus && typeof project.geographicFocus === 'string') {
-                              const cities = project.geographicFocus
-                                .split(/[,;|&]/)
-                                .map(city => city.trim())
-                                .filter(city => city.length > 0)
-                              geographicFocusCount = new Set(cities).size
-                            }
-                            
-                            // Set the selected project with geographic focus count
-                            setSelectedProject({
-                              ...project,
-                              geographicFocusCount
-                            })
-                          }}
-                        >
-                          <span className="font-medium text-blue-600 hover:text-blue-800">{project.name || 'Unnamed Project'}</span>
-                          <span className="text-gray-600">{project.geographicFocus || 'No location specified'}</span>
-                        </div>
-                      ))}
+                const combinedProjects = [...outsideProjects, ...stateWideRegionWideProjects]
+                
+                return combinedProjects.length > 0 ? (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 mb-3">
+                      Projects not included in map coloring ({selectedYear}) - {combinedProjects.length} projects
+                    </h3>
+                    <div className="bg-gray-50 rounded-lg p-4 max-h-40 overflow-y-auto">
+                      <div className="space-y-2">
+                        {combinedProjects.map(project => (
+                          <div 
+                            key={project.id} 
+                            className="flex items-center justify-between text-sm p-2 rounded hover:bg-gray-100 cursor-pointer transition-colors"
+                            onClick={() => {
+                              // Calculate geographic focus count for the project
+                              let geographicFocusCount = 0
+                              if (project.geographicFocus && typeof project.geographicFocus === 'string') {
+                                const cities = project.geographicFocus
+                                  .split(/[,;|&]/)
+                                  .map(city => city.trim())
+                                  .filter(city => city.length > 0)
+                                geographicFocusCount = new Set(cities).size
+                              }
+                              
+                              // Set the selected project with geographic focus count
+                              setSelectedProject({
+                                ...project,
+                                geographicFocusCount
+                              })
+                            }}
+                          >
+                            <span className="font-medium text-blue-600 hover:text-blue-800">{project.name || 'Unnamed Project'}</span>
+                            <span className="text-gray-600">{project.geographicFocus || 'No location specified'}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : null
-            })()
-          )}
-        </div>
-      )}
+                ) : null
+              })()
+            )}
+          </div>
+        )}
 
-      {/* Choropleth Legend for Year View */}
-      {viewMode === 'year' && selectedYear && (
-        <div className="mb-4">
-          <div className="bg-white rounded-lg border border-gray-200 p-3">
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Project Count Legend</h4>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border border-gray-300" style={{ backgroundColor: 'transparent' }}></div>
-                <span className="text-xs text-gray-600">No Projects</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#eff6ff' }}></div>
-                <span className="text-xs text-gray-600">Low</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#60a5fa' }}></div>
-                <span className="text-xs text-gray-600">Medium</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded" style={{ backgroundColor: '#1e40af' }}></div>
-                <span className="text-xs text-gray-600">High</span>
+        {/* Choropleth Legend for Year View */}
+        {viewMode === 'year' && selectedYear && (
+          <div className="mb-4">
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Project Count Legend</h4>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 rounded border border-gray-300" style={{ backgroundColor: 'transparent' }}></div>
+                  <span className="text-xs text-gray-600">No Projects</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#eff6ff' }}></div>
+                  <span className="text-xs text-gray-600">Low</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#60a5fa' }}></div>
+                  <span className="text-xs text-gray-600">Medium</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#1e40af' }}></div>
+                  <span className="text-xs text-gray-600">High</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      <div className="w-full flex-1 min-h-0" key={`map-container-${isSidebarCollapsed}`}>
+      {/* Map Container - Full Width */}
+      <div className="w-full flex-1 min-h-0 relative">
         <Map 
           onCitySelect={viewMode === 'city' ? setSelectedCity : null} 
           selectedCity={selectedCity}
@@ -882,6 +909,7 @@ const MapPage = () => {
           onMunicipalityClick={viewMode === 'year' ? handleYearViewMunicipalityClick : null}
           choroplethData={viewMode === 'year' ? getChoroplethGeoJSON() : null}
           selectedYear={selectedYear}
+          isSidebarCollapsed={isSidebarCollapsed}
         />
       </div>
       
@@ -1155,9 +1183,38 @@ const MapPage = () => {
         </div>
       )}
 
+      {/* Test Button for Alert */}
+      <div className="fixed top-4 right-4 z-[10000]">
+        <button
+          onClick={() => {
+            console.log('Test button clicked');
+            setCityNotFoundAlertVisible(!cityNotFoundAlertVisible);
+            setCityNotFoundName('Test City');
+          }}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Toggle Alert
+        </button>
+      </div>
+
       {/* City Not Found Alert */}
       {cityNotFoundAlertVisible && (
-        <div className="fixed bottom-20 right-4 z-50 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-lg">
+        <div 
+          className="fixed bottom-20 right-4 z-[9999] bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-lg"
+          onClick={(e) => {
+            console.log('Alert container clicked');
+            if (e.target === e.currentTarget) {
+              console.log('Direct container click - closing alert');
+              alertManuallyClosed.current = true;
+              setCityNotFoundAlertVisible(false);
+              setCityNotFoundName('');
+              if (cityNotFoundTimeoutId) {
+                clearTimeout(cityNotFoundTimeoutId);
+                setCityNotFoundTimeoutId(null);
+              }
+            }
+          }}
+        >
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1168,13 +1225,26 @@ const MapPage = () => {
               <p className="text-sm font-medium">
                 Sorry, we cannot find "{cityNotFoundName}" on the map.
               </p>
+              <p className="text-xs text-red-500">Click anywhere to close</p>
             </div>
             <div className="ml-auto pl-3">
               <button
-                onClick={handleCloseCityNotFoundAlert}
-                className="text-red-400 hover:text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  console.log('Close button clicked - simple approach');
+                  alertManuallyClosed.current = true;
+                  setCityNotFoundAlertVisible(false);
+                  setCityNotFoundName('');
+                  if (cityNotFoundTimeoutId) {
+                    clearTimeout(cityNotFoundTimeoutId);
+                    setCityNotFoundTimeoutId(null);
+                  }
+                }}
+                className="text-red-400 hover:text-red-600 cursor-pointer p-1 bg-red-200 rounded hover:bg-red-300 border border-red-300"
+                type="button"
+                style={{ minWidth: '24px', minHeight: '24px' }}
               >
-                <span className="text-lg">×</span>
+                <span className="text-lg font-bold">×</span>
               </button>
             </div>
           </div>
