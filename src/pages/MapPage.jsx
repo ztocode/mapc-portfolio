@@ -665,6 +665,16 @@ const MapPage = () => {
     console.log('Alert visibility changed to:', cityNotFoundAlertVisible);
   }, [cityNotFoundAlertVisible]);
 
+  // Effect to trigger map resize when sidebar collapses/expands
+  useEffect(() => {
+    console.log('Sidebar collapsed state changed to:', isSidebarCollapsed);
+    // Trigger window resize to force map recalculation
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+      console.log('Window resize event dispatched for sidebar collapse');
+    }, 100);
+  }, [isSidebarCollapsed]);
+
   // Debug effect to check choropleth data
   useEffect(() => {
     if (viewMode === 'year' && selectedYear && geojsonData) {
@@ -702,7 +712,7 @@ const MapPage = () => {
   }, [viewMode, selectedYear, geojsonData, massachusettsProjects])
 
   return (
-    <div className="flex flex-col w-full h-full">
+    <div className={`flex flex-col ${viewMode === 'year' ? 'w-screen' : 'w-full'} h-full`}>
       {/* Loading Mask */}
       {loading && <LoadingMask />}
       
@@ -897,7 +907,10 @@ const MapPage = () => {
       </div>
 
       {/* Map Container - Full Width */}
-      <div className="w-full flex-1 min-h-0 relative">
+      <div 
+        className="w-full flex-1 min-h-0 relative" 
+        style={viewMode === 'year' ? { width: '100vw', maxWidth: '100vw' } : {}}
+      >
         <Map 
           onCitySelect={viewMode === 'city' ? setSelectedCity : null} 
           selectedCity={selectedCity}
@@ -987,200 +1000,228 @@ const MapPage = () => {
 
       {/* Project Details Popup */}
       {projectPopupVisible && selectedProject && (
-        <div className={`fixed inset-0 z-50 ${isProjectMinimized ? '' : 'bg-gray-300 bg-opacity-50 flex items-center justify-center'}`} style={{ backgroundColor: isProjectMinimized ? 'transparent' : 'rgba(209, 213, 219, 0.5)' }}>
-          <div
-            className={`bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col ${
-              isProjectMinimized 
-                ? 'w-80 h-16 bottom-4 right-4 absolute' 
-                : 'w-[1000px] h-[300px]'
-            }`}
-            style={{
-              cursor: isProjectDragging ? 'grabbing' : 'default',
-              left: isProjectMinimized ? 'auto' : `${projectPopupPosition.x}px`,
-              top: isProjectMinimized ? 'auto' : `${projectPopupPosition.y}px`
-            }}
-            onMouseDown={isProjectMinimized ? undefined : handleProjectMouseDown}
-            onMouseMove={isProjectMinimized ? undefined : handleProjectMouseMove}
-            onMouseUp={isProjectMinimized ? undefined : handleProjectMouseUp}
-            onMouseLeave={isProjectMinimized ? undefined : handleProjectMouseUp}
-          >
-          {/* Header */}
-          <div className={`popup-header flex items-center justify-between border-b border-gray-200 bg-gray-50 rounded-t-lg cursor-grab flex-shrink-0 ${
-            isProjectMinimized ? 'p-2' : 'p-3'
-          }`}>
-            <div className="flex-1 min-w-0">
-              <h2 className={`font-semibold text-gray-900 break-words leading-tight w-full max-w-xs ${
-                isProjectMinimized ? 'text-xs' : 'text-sm'
-              }`}>
-                {selectedProject.name || 'Unnamed Project'}
-              </h2>
-            </div>
-            <div className="flex items-center space-x-1 flex-shrink-0">
-              <button
-                onClick={handleProjectMinimize}
-                className="p-1 hover:bg-gray-200 rounded transition-colors"
-                title={isProjectMinimized ? "Maximize" : "Minimize"}
-              >
-                <span className="text-gray-600 text-sm">
-                  {isProjectMinimized ? "□" : "−"}
-                </span>
-              </button>
-              <button
-                onClick={() => {
-                  setProjectPopupVisible(false)
-                  setSelectedProject(null)
-                }}
-                className="p-1 hover:bg-gray-200 rounded transition-colors"
-                title="Close"
-              >
-                <span className="text-gray-600 text-sm">×</span>
-              </button>
-            </div>
-          </div>
-          
-          {/* Content */}
+        <>
+          {/* Full screen overlay only when not minimized */}
           {!isProjectMinimized && (
-            <div className="p-4 overflow-y-auto flex-1">
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-900 mb-2">Project Details</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Client:</span>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {selectedProject.client ? (
-                        selectedProject.client
-                          .split(/[""]/)
-                          .map(client => client.trim().replace(/,/g, ''))
-                          .filter(client => client.length > 0)
-                          .map((client, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full"
-                            >
-                              {client}
-                            </span>
-                          ))
-                      ) : (
-                        <span className="text-gray-500 text-sm">Not specified</span>
-                      )}
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div
+                className="bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col w-[1000px] h-[300px]"
+                style={{
+                  cursor: isProjectDragging ? 'grabbing' : 'default',
+                  left: `${projectPopupPosition.x}px`,
+                  top: `${projectPopupPosition.y}px`
+                }}
+                onMouseDown={handleProjectMouseDown}
+                onMouseMove={handleProjectMouseMove}
+                onMouseUp={handleProjectMouseUp}
+                onMouseLeave={handleProjectMouseUp}
+              >
+                {/* Header */}
+                <div className="popup-header flex items-center justify-between border-b border-gray-200 bg-gray-50 rounded-t-lg cursor-grab flex-shrink-0 p-3">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-semibold text-gray-900 break-words leading-tight w-full max-w-xs text-sm">
+                      {selectedProject.name || 'Unnamed Project'}
+                    </h2>
+                  </div>
+                  <div className="flex items-center space-x-1 flex-shrink-0">
+                    <button
+                      onClick={handleProjectMinimize}
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      title="Minimize"
+                    >
+                      <span className="text-gray-600 text-sm">−</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProjectPopupVisible(false)
+                        setSelectedProject(null)
+                      }}
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      title="Close"
+                    >
+                      <span className="text-gray-600 text-sm">×</span>
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Content */}
+                <div className="p-4 overflow-y-auto flex-1">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-900 mb-2">Project Details</h3>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Client:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {selectedProject.client ? (
+                              selectedProject.client
+                                .split(/[""]/)
+                                .map(client => client.trim().replace(/,/g, ''))
+                                .filter(client => client.length > 0)
+                                .map((client, index) => (
+                                  <span
+                                    key={index}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full"
+                                  >
+                                    {client}
+                                  </span>
+                                ))
+                            ) : (
+                              <span className="text-gray-500 text-sm">Not specified</span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Department:</span>
+                          <p className="text-gray-900 break-words">{selectedProject.leadDepartment || 'Not assigned'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Manager:</span>
+                          <p className="text-gray-900 break-words">{selectedProject.projectManager || 'Not assigned'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Status:</span>
+                          <p className="text-gray-900 break-words">{selectedProject.projectStatus || 'Unknown'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Type:</span>
+                          <p className="text-gray-900 break-words">{selectedProject.projectType || 'Others'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Focus Count:</span>
+                          <p className="text-gray-900">{selectedProject.geographicFocusCount || 0}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-600">Geographic Focus:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {selectedProject.geographicFocus ? (
+                              selectedProject.geographicFocus
+                                .split(/[,;|&]/)
+                                .map(city => city.trim())
+                                .filter(city => city.length > 0)
+                                .map((city, index) => (
+                                  <span
+                                    key={index}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
+                                  >
+                                    {city}
+                                  </span>
+                                ))
+                            ) : (
+                              <span className="text-gray-500 text-sm">Not specified</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-600">MetroCommon 2050 Goals:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {selectedProject.metroCommon2050goals ? (
+                              selectedProject.metroCommon2050goals
+                                .split(',')
+                                .map(goal => goal.trim())
+                                .filter(goal => goal.length > 0)
+                                .map((goal, index) => (
+                                  <span
+                                    key={index}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full"
+                                  >
+                                    {goal}
+                                  </span>
+                                ))
+                            ) : (
+                              <span className="text-gray-500 text-sm">Not specified</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Department:</span>
-                    <p className="text-gray-900 break-words">{selectedProject.leadDepartment || 'Not assigned'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Manager:</span>
-                    <p className="text-gray-900 break-words">{selectedProject.projectManager || 'Not assigned'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Status:</span>
-                    <p className="text-gray-900 break-words">{selectedProject.projectStatus || 'Unknown'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Type:</span>
-                    <p className="text-gray-900 break-words">{selectedProject.projectType || 'Others'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Focus Count:</span>
-                    <p className="text-gray-900">{selectedProject.geographicFocusCount || 0}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-600">Geographic Focus:</span>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {selectedProject.geographicFocus ? (
-                        selectedProject.geographicFocus
-                          .split(/[,;|&]/)
-                          .map(city => city.trim())
-                          .filter(city => city.length > 0)
-                          .map((city, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
-                            >
-                              {city}
-                            </span>
-                          ))
-                      ) : (
-                        <span className="text-gray-500 text-sm">Not specified</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-gray-600">MetroCommon 2050 Goals:</span>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {selectedProject.metroCommon2050goals ? (
-                        selectedProject.metroCommon2050goals
-                          .split(',')
-                          .map(goal => goal.trim())
-                          .filter(goal => goal.length > 0)
-                          .map((goal, index) => (
-                            <span
-                              key={index}
-                              className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full"
-                            >
-                              {goal}
-                            </span>
-                          ))
-                      ) : (
-                        <span className="text-gray-500 text-sm">Not specified</span>
-                      )}
-                    </div>
+                    
+                    {selectedProject.projectDescription && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Description</h3>
+                        <p className="text-sm text-gray-700 break-words leading-relaxed">{selectedProject.projectDescription}</p>
+                      </div>
+                    )}
+                    
+                    {selectedProject.stakeholders && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Stakeholders</h3>
+                        <p className="text-sm text-gray-700 break-words leading-relaxed">{selectedProject.stakeholders}</p>
+                      </div>
+                    )}
+                    
+                    {selectedProject.attachmentUrls && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 mb-2">Attachments</h3>
+                        <div className="space-y-2">
+                          {selectedProject.attachmentUrls.split('\n').map((attachment, index) => {
+                            if (!attachment.trim()) return null
+                            
+                            const colonIndex = attachment.indexOf(': ')
+                            if (colonIndex === -1) return null
+                            
+                            const filename = attachment.substring(0, colonIndex).trim()
+                            const url = attachment.substring(colonIndex + 2).trim()
+                            
+                            return (
+                              <div key={index} className="flex items-center space-x-2">
+                                <i className="fas fa-paperclip text-blue-600 text-sm"></i>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
+                                  title={filename}
+                                >
+                                  {filename}
+                                </a>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-              
-              {selectedProject.projectDescription && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Description</h3>
-                  <p className="text-sm text-gray-700 break-words leading-relaxed">{selectedProject.projectDescription}</p>
-                </div>
-              )}
-              
-              {selectedProject.stakeholders && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Stakeholders</h3>
-                  <p className="text-sm text-gray-700 break-words leading-relaxed">{selectedProject.stakeholders}</p>
-                </div>
-              )}
-              
-              {selectedProject.attachmentUrls && (
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Attachments</h3>
-                  <div className="space-y-2">
-                    {selectedProject.attachmentUrls.split('\n').map((attachment, index) => {
-                      if (!attachment.trim()) return null
-                      
-                      const colonIndex = attachment.indexOf(': ')
-                      if (colonIndex === -1) return null
-                      
-                      const filename = attachment.substring(0, colonIndex).trim()
-                      const url = attachment.substring(colonIndex + 2).trim()
-                      
-                      return (
-                        <div key={index} className="flex items-center space-x-2">
-                          <i className="fas fa-paperclip text-blue-600 text-sm"></i>
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline break-all"
-                            title={filename}
-                          >
-                            {filename}
-                          </a>
-                        </div>
-                      )
-                    })}
+            </div>
+          )}
+
+          {/* Minimized popup - positioned in corner without blocking interactions */}
+          {isProjectMinimized && (
+            <div className="fixed bottom-4 right-4 z-50">
+              <div className="bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col w-80 h-16">
+                {/* Header */}
+                <div className="popup-header flex items-center justify-between border-b border-gray-200 bg-gray-50 rounded-t-lg cursor-grab flex-shrink-0 p-2">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-semibold text-gray-900 break-words leading-tight w-full max-w-xs text-xs">
+                      {selectedProject.name || 'Unnamed Project'}
+                    </h2>
+                  </div>
+                  <div className="flex items-center space-x-1 flex-shrink-0">
+                    <button
+                      onClick={handleProjectMinimize}
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      title="Maximize"
+                    >
+                      <span className="text-gray-600 text-sm">□</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProjectPopupVisible(false)
+                        setSelectedProject(null)
+                      }}
+                      className="p-1 hover:bg-gray-200 rounded transition-colors"
+                      title="Close"
+                    >
+                      <span className="text-gray-600 text-sm">×</span>
+                    </button>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
           )}
-        </div>
-        </div>
+        </>
       )}
 
       

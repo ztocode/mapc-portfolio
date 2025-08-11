@@ -59,7 +59,7 @@ const Root = () => {
     return (
        <Layout>
         <Navbar />
-        <main className="flex flex-1 min-h-0">
+        <main className={`flex flex-1 min-h-0 ${!isSidebarVisible ? 'w-screen' : ''}`}>
             {isSidebarVisible && (
                 <Sidebar 
                     isCollapsed={isSidebarCollapsed} 
@@ -74,7 +74,7 @@ const Root = () => {
                     mapcSubregionsData={mapcSubregionsData}
                 />
             )}
-            <div className={`flex-1 transition-all duration-300 ${!isSidebarVisible ? 'w-full' : ''}`} style={!isSidebarVisible ? { width: '100vw' } : {}}>
+            <div className={`${isSidebarVisible ? 'flex-1' : 'w-full'} transition-all duration-300`}>
                 <Outlet context={{ 
                     selectedCity, 
                     setSelectedCity,

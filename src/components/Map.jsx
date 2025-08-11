@@ -32,6 +32,17 @@ const MapComponent = ({
 
   // Map will automatically resize when container width changes
 
+  // Trigger map resize when sidebar collapses/expands
+  useEffect(() => {
+    if (mapRef.current) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        mapRef.current.getMap().resize();
+        console.log('Map resized due to sidebar state change');
+      }, 100);
+    }
+  }, [isSidebarCollapsed]);
+
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
   // MAPC Subregion mapping
