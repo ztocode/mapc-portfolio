@@ -7,6 +7,11 @@ const ProjectByDepartmentChart = () => {
   const [selectedDepartments, setSelectedDepartments] = useState([])
   const [selectedYears, setSelectedYears] = useState([])
 
+  // Debug logging
+  console.log('ProjectByDepartmentChart - projects count:', projects.length)
+  console.log('ProjectByDepartmentChart - selectedDepartments:', selectedDepartments)
+  console.log('ProjectByDepartmentChart - selectedYears:', selectedYears)
+
   // Get unique departments and years from projects
   const { departments, years } = useMemo(() => {
     const deptSet = new Set()

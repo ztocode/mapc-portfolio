@@ -740,12 +740,14 @@ const DashboardPage = () => {
         </div>
 
         {/* Project by Department Chart */}
-        <div className="mt-8">
+        <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Project Distribution by Department and Year</h3>
           <ProjectByDepartmentChart />
         </div>
 
         {/* Municipal Collaboration Chart */}
-        <div className="mt-8">
+        <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Municipal Collaboration Types by Year</h3>
           <MunicipalCollaborationChart />
         </div>
       </div>
@@ -984,7 +986,7 @@ const DashboardPage = () => {
   )
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="h-full overflow-y-auto p-4 sm:p-6">
       {/* Loading Mask */}
       {loading && <LoadingMask />}
       
@@ -1027,7 +1029,9 @@ const DashboardPage = () => {
 
 
       {/* Dynamic Content Based on View Mode */}
-      {viewMode === 'statistics' ? <StatisticsView /> : <TableView />}
+      <div className="pb-8">
+        {viewMode === 'statistics' ? <StatisticsView /> : <TableView />}
+      </div>
 
       {/* Department/Status Projects Popup */}
       {showDepartmentPopup && departmentProjects.length > 0 && (

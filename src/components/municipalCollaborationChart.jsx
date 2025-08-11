@@ -6,6 +6,10 @@ const MunicipalCollaborationChart = () => {
   const projects = useSelector(selectAllProjects)
   const [selectedYears, setSelectedYears] = useState([])
 
+  // Debug logging
+  console.log('MunicipalCollaborationChart - projects count:', projects.length)
+  console.log('MunicipalCollaborationChart - selectedYears:', selectedYears)
+
   // Get unique years from projects
   const years = useMemo(() => {
     const yearSet = new Set()
