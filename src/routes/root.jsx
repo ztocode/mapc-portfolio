@@ -74,7 +74,7 @@ const Root = () => {
                     mapcSubregionsData={mapcSubregionsData}
                 />
             )}
-            <div className={`${isSidebarVisible ? 'flex-1' : 'w-full'} transition-all duration-300`}>
+            <div className={`${isSidebarVisible ? 'flex-1' : 'w-full'} transition-all duration-300 overflow-y-auto`}>
                 <Outlet context={{ 
                     selectedCity, 
                     setSelectedCity,
