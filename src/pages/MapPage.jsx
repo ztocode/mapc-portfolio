@@ -1183,19 +1183,7 @@ const MapPage = () => {
         </div>
       )}
 
-      {/* Test Button for Alert */}
-      <div className="fixed top-4 right-4 z-[10000]">
-        <button
-          onClick={() => {
-            console.log('Test button clicked');
-            setCityNotFoundAlertVisible(!cityNotFoundAlertVisible);
-            setCityNotFoundName('Test City');
-          }}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
-          Toggle Alert
-        </button>
-      </div>
+      
 
       {/* City Not Found Alert */}
       {cityNotFoundAlertVisible && (
