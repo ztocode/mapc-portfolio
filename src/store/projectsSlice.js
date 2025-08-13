@@ -15,8 +15,8 @@ export const fetchProjects = createAsyncThunk(
       }
 
       // Get environment variables
-      const baseId = process.env.VITE_AIRTABLE_BASE_ID
-      const apiKey = process.env.VITE_AIRTABLE_API_KEY
+      const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID
+      const apiKey = import.meta.env.VITE_AIRTABLE_API_KEY
       let tableName = encodeURIComponent('MAPC Project (New)')
       
 
