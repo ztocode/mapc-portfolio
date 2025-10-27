@@ -43,6 +43,38 @@ const MapComponent = ({
     }
   }, [isSidebarCollapsed]);
 
+  // Handle window resize events
+  useEffect(() => {
+    const handleResize = () => {
+      if (mapRef.current) {
+        // Small delay to ensure DOM has updated
+        setTimeout(() => {
+          mapRef.current.getMap().resize();
+          console.log('Map resized due to window resize');
+        }, 100);
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup function to remove event listener
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // Trigger map resize when view mode changes
+  useEffect(() => {
+    if (mapRef.current) {
+      // Small delay to ensure DOM has updated
+      setTimeout(() => {
+        mapRef.current.getMap().resize();
+        console.log('Map resized due to view mode change');
+      }, 200);
+    }
+  }, [viewMode]);
+
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
   // MAPC Subregion mapping
@@ -236,7 +268,7 @@ const MapComponent = ({
       // Reset the ref when there are no highlighted cities
       lastAlertedCities.current = ''
     }
-  }, [highlightedCities]) // Removed onCityNotFound from dependencies
+  }, [highlightedCities, onCityNotFound]) // Added onCityNotFound back but will use useCallback in parent
 
   // Function to zoom to a specific town
   const zoomToTown = (townName) => {

@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux'
 import { useDispatch } from 'react-redux'
 import { selectAllProjects, fetchProjects, selectProjectsLoading, selectProjectsError } from '../store/projectsSlice'
 import ProjectsTable from '../components/ProjectsTable'
-import { useMemo, useEffect, useState, useRef } from 'react'
+import { useMemo, useEffect, useState, useRef, useCallback } from 'react'
 import { useOutletContext } from 'react-router-dom'
 
 const MapPage = () => {
@@ -502,7 +502,7 @@ const MapPage = () => {
   }
 
   // Handle city not found on map
-  const handleCityNotFound = (cityName) => {
+  const handleCityNotFound = useCallback((cityName) => {
     // Clear any existing timeout
     if (cityNotFoundTimeoutId) {
       clearTimeout(cityNotFoundTimeoutId)
@@ -525,13 +525,10 @@ const MapPage = () => {
     }, 3000)
     
     setCityNotFoundTimeoutId(timeoutId)
-  }
+  }, [cityNotFoundTimeoutId])
 
   // Handle manual close of city not found alert
-  const handleCloseCityNotFoundAlert = () => {
-    console.log('handleCloseCityNotFoundAlert called');
-    console.log('Current cityNotFoundAlertVisible:', cityNotFoundAlertVisible);
-    
+  const handleCloseCityNotFoundAlert = useCallback(() => {
     // Set manual close flag
     alertManuallyClosed.current = true
     
@@ -544,9 +541,7 @@ const MapPage = () => {
     // Set both states in one go to prevent conflicts
     setCityNotFoundAlertVisible(false)
     setCityNotFoundName('')
-    
-    console.log('State should be updated to false');
-  }
+  }, [cityNotFoundTimeoutId])
 
   // Handle mouse down for dragging
   const handleMouseDown = (e) => {
@@ -660,10 +655,7 @@ const MapPage = () => {
     </div>
   )
 
-  // Debug effect to monitor alert state
-  useEffect(() => {
-    console.log('Alert visibility changed to:', cityNotFoundAlertVisible);
-  }, [cityNotFoundAlertVisible]);
+  // Debug effect to monitor alert state - removed to prevent infinite loops
 
   // Effect to trigger map resize when sidebar collapses/expands
   useEffect(() => {
@@ -674,6 +666,16 @@ const MapPage = () => {
       console.log('Window resize event dispatched for sidebar collapse');
     }, 100);
   }, [isSidebarCollapsed]);
+
+  // Effect to trigger map resize when view mode changes
+  useEffect(() => {
+    console.log('View mode changed to:', viewMode);
+    // Trigger window resize to force map recalculation when view mode changes
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+      console.log('Window resize event dispatched for view mode change');
+    }, 200); // Slightly longer delay to ensure layout has updated
+  }, [viewMode]);
 
   // Debug effect to check choropleth data
   useEffect(() => {
@@ -712,7 +714,7 @@ const MapPage = () => {
   }, [viewMode, selectedYear, geojsonData, massachusettsProjects])
 
   return (
-    <div className={`flex flex-col ${viewMode === 'year' ? 'w-screen' : 'w-full'} h-full`}>
+    <div className="flex flex-col w-full h-full">
       {/* Loading Mask */}
       {loading && <LoadingMask />}
       
@@ -908,8 +910,7 @@ const MapPage = () => {
 
       {/* Map Container - Full Width */}
       <div 
-        className="w-full flex-1 min-h-0 relative" 
-        style={viewMode === 'year' ? { width: '100vw', maxWidth: '100vw' } : {}}
+        className="w-full flex-1 min-h-0 relative"
       >
         <Map 
           onCitySelect={viewMode === 'city' ? setSelectedCity : null} 
@@ -1231,16 +1232,8 @@ const MapPage = () => {
         <div 
           className="fixed bottom-20 right-4 z-[9999] bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded shadow-lg"
           onClick={(e) => {
-            console.log('Alert container clicked');
             if (e.target === e.currentTarget) {
-              console.log('Direct container click - closing alert');
-              alertManuallyClosed.current = true;
-              setCityNotFoundAlertVisible(false);
-              setCityNotFoundName('');
-              if (cityNotFoundTimeoutId) {
-                clearTimeout(cityNotFoundTimeoutId);
-                setCityNotFoundTimeoutId(null);
-              }
+              handleCloseCityNotFoundAlert();
             }
           }}
         >
@@ -1260,14 +1253,7 @@ const MapPage = () => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  console.log('Close button clicked - simple approach');
-                  alertManuallyClosed.current = true;
-                  setCityNotFoundAlertVisible(false);
-                  setCityNotFoundName('');
-                  if (cityNotFoundTimeoutId) {
-                    clearTimeout(cityNotFoundTimeoutId);
-                    setCityNotFoundTimeoutId(null);
-                  }
+                  handleCloseCityNotFoundAlert();
                 }}
                 className="text-red-400 hover:text-red-600 cursor-pointer p-1 bg-red-200 rounded hover:bg-red-300 border border-red-300"
                 type="button"
