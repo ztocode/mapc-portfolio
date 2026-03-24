@@ -1,4 +1,5 @@
 import React from 'react'
+import { normalizeLeadDepartments } from '../utils/departmentUtils'
 
 const BreakdownCard = ({ 
   title, 
@@ -83,8 +84,7 @@ const BreakdownCard = ({
 
       // Filter projects by department
       filteredProjects = targetProjects.filter(project => {
-        const dept = project.leadDepartment || 'Not Assigned'
-        const departments = dept.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0)
+        const departments = normalizeLeadDepartments(project.leadDepartment || 'Not Assigned')
         return departments.includes(key)
       })
       setClickedCategoryType('Department')

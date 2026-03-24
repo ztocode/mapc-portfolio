@@ -17,7 +17,8 @@ export const fetchProjects = createAsyncThunk(
       // Get environment variables
       const baseId = import.meta.env.VITE_AIRTABLE_BASE_ID
       const apiKey = import.meta.env.VITE_AIRTABLE_API_KEY
-      let tableName = encodeURIComponent('MAPC Project (New)')
+      /* let tableName = encodeURIComponent('MAPC Project (New)') */
+      let tableName = encodeURIComponent('MAPC Project Table')
       
 
       if (!baseId || !apiKey) {
@@ -47,6 +48,7 @@ export const fetchProjects = createAsyncThunk(
         const response = await fetch(url, { headers })
         
         if (!response.ok) {
+          console.error('Airtable API error:', response)
           throw new Error(`Airtable API error: ${response.status} ${response.statusText}`)
         }
 
@@ -59,7 +61,7 @@ export const fetchProjects = createAsyncThunk(
         offset = result.offset
 
       } while (offset)
-
+      const airtalebaseUrl = "https://airtable.com/appB9GHo5OzLFaoNX/tbl6txglDJAPDS0oE/viw5osoFnqElrqHkQ/"
       // Transform the data
       const transformedData = allRecords.map(record => {
         const transformed = {}
@@ -73,14 +75,14 @@ export const fetchProjects = createAsyncThunk(
         const fieldMapping = {
           recordId: "Record ID",
           projectStatus: "Project Status",
-          projectDescription: "Project Description",
-          projectType: "Type of Project",
+          projectDescription: "Project Description (What? Why? Where?)",
+          projectType: "Project Type",
           client: "Client(s)",
           municipalityCollaboration: "Municipal Collaboration",
           geographicFocus: "Geographic Focus",
           mapcSubRegions: "MAPC Sub Regions Represented (Auto)",
-          projectManager: "Project Manager",
-          leadDepartment: "Lead Department/Team",
+          projectManager: "Name (from Project Manager)",
+          leadDepartment: "Name (from Lead Department/Team)",
           internalCollaborators: "Internal Collaborators (Dept and Teams Only)",
           projectYear: "Project Year",
           startDate: "Start Date",
@@ -95,14 +97,14 @@ export const fetchProjects = createAsyncThunk(
             transformed[newKey] = record.fields[airtableField]
           }
         })
-
+        transformed.airtableLink = airtalebaseUrl + record.id
         // Add record ID and created time
         transformed.id = record.id
         transformed.createdTime = record.createdTime
-
+   
         return transformed
       })
-
+      console.log('Transformed data:', transformedData)
       return transformedData
 
     } catch (error) {

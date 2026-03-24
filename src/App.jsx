@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Root from './routes/root'
 import Dashboard from './pages/DashboardPage'
 import Projects from './pages/ProjectsPage'
@@ -9,7 +9,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Root />}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<Navigate to="/map" replace />} />
           <Route path="projects" element={<Projects />} />
           <Route path="map" element={<Map />} />
           

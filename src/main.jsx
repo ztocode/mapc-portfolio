@@ -1,8 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { Provider } from 'react-redux'
 import { store } from './store/store'
+import 'bootstrap/dist/css/bootstrap.min.css'
 import './index.css'
 import Root from './routes/root'
 import DashboardPage from './pages/DashboardPage'
@@ -19,10 +20,14 @@ const routes = [
     children: [
       {
         index: true,
+        element: <Navigate to="/map" replace />,
+      },
+      {
+        path: "dashboard",
         element: <DashboardPage />,
       },
       {
-        path: "map/",
+        path: "map",
         element: <MapPage />,
       },
     ],

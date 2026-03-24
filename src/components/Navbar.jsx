@@ -3,7 +3,7 @@ import mapcLogo from '../assets/img/mapc-logo.png'
 
 const Navbar = () => {
   const navItems = [
-    { path: '/', label: 'Dashboard' },
+    { path: '/dashboard', label: 'Dashboard' },
     { path: '/map', label: 'Map' },
   ]
 
@@ -20,7 +20,7 @@ const Navbar = () => {
                 className="h-8 w-auto"
               />
               <h1 className="text-xl font-bold text-gray-900">
-                MAPC Dashboard
+                MAPC | Project Portfolio
               </h1>
             </div>
           </div>

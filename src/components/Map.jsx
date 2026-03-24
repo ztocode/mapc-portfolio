@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Map, NavigationControl, Source, Layer, Popup } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -14,8 +14,23 @@ const MapComponent = ({
   choroplethData = null,
   selectedYear = null,
   onMunicipalityClick = null,
-  isSidebarCollapsed = false
+  isSidebarCollapsed = false,
+  municipalityHoverProjectsByTown = {},
+  onHoverProjectClick = null,
+  shouldAutoZoomOnSelectedCity = true,
+  openTooltipForSelectedCity = false
 }) => {
+  const normalizeTownKey = (value) => {
+    if (!value) return ''
+    return String(value)
+      .toUpperCase()
+      .replace(/^CITY OF\s+/, '')
+      .replace(/^TOWN OF\s+/, '')
+      .replace(/[^A-Z0-9\s-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
   const [viewState, setViewState] = useState({
     longitude: -71.0589,
     latitude: 42.3601,
@@ -23,12 +38,15 @@ const MapComponent = ({
   });
 
   const [geojsonData, setGeojsonData] = useState(null);
-  const [subregionData, setSubregionData] = useState(null);
+  const [mapcRegionData, setMapcRegionData] = useState(null);
   const [hoverInfo, setHoverInfo] = useState(null);
-  const [showSubregionLayer, setShowSubregionLayer] = useState(true);
+  const [clickedTooltipInfo, setClickedTooltipInfo] = useState(null);
+  const [isHoverTooltipActive, setIsHoverTooltipActive] = useState(false);
+  const [showMapcRegionLayer, setShowMapcRegionLayer] = useState(true);
   const [popupInfo, setPopupInfo] = useState(null);
   const lastAlertedCities = useRef('');
   const mapRef = useRef(null);
+  const hoverHideTimeoutRef = useRef(null);
 
   // Map will automatically resize when container width changes
 
@@ -240,6 +258,13 @@ const MapComponent = ({
 
   // Check if any cities couldn't be found and trigger alert
   useEffect(() => {
+    // Subregion mode uses highlightedCities to represent munis from a selected subregion.
+    // We intentionally suppress "not found" alerts for this mode.
+    if (highlightedCities.length > 0) {
+      lastAlertedCities.current = ''
+      return
+    }
+
     if (highlightedCities.length > 0 && onCityNotFound) {
       // Check for cities that couldn't be found (not state-wide, not a subregion, not region-wide, not an individual town)
       const notFoundCities = highlightedCities.filter(city => {
@@ -325,24 +350,36 @@ const MapComponent = ({
         return
       }
       
-      // Calculate appropriate zoom level based on bounding box size
-      const lngDiff = maxLng - minLng
+      // Bounding box size for the popup-aware fallback centering.
       const latDiff = maxLat - minLat
-      const maxDiff = Math.max(lngDiff, latDiff)
-      
-              // Set zoom level to 8 as requested
-        let zoom = 8
-      
-      // Position the polygon at the top of the map by adjusting latitude
-      // Move the center up so the polygon appears in the upper portion and above the popup window
-      // The popup is 50vh tall, so we need to position the polygon in the top 50vh of the map
-      const adjustedLat = centerLat + (latDiff * 0.5) // Move up by 50% of the polygon height to ensure it's above the popup
-      
-      // Animate to the new view state
+
+      // Prefer fitBounds so the clicked polygon fills the viewport.
+      // This fixes the "zooming out" look caused by using a fixed zoom level.
+      // Also add extra top padding so the polygon stays visible above the popup.
+      const map = mapRef.current?.getMap?.()
+      if (map && typeof map.fitBounds === 'function') {
+        map.fitBounds(
+          [
+            [minLng, minLat], // SW
+            [maxLng, maxLat], // NE
+          ],
+          {
+            padding: { top: 180, bottom: 60, left: 40, right: 40 },
+            duration: 1000,
+            maxZoom: 16,
+          }
+        )
+        return
+      }
+
+      // Fallback: keep previous behavior if fitBounds isn't available.
+      // Position the polygon at the top of the map by adjusting latitude.
+      const adjustedLat = centerLat + latDiff * 0.5 // Move up so it's above the popup.
+
       setViewState({
         longitude: centerLng,
         latitude: adjustedLat,
-        zoom: zoom,
+        zoom: 8,
         transitionDuration: 1000,
         transitionInterpolator: {
           interpolatePosition: (from, to) => [from[0], from[1]]
@@ -353,6 +390,8 @@ const MapComponent = ({
 
   // Zoom to town when selectedCity changes
   useEffect(() => {
+    if (!shouldAutoZoomOnSelectedCity) return
+
     if (selectedCity && selectedCity.toLowerCase().includes('state-wide')) {
       // Zoom to show entire state
       setViewState({
@@ -395,11 +434,150 @@ const MapComponent = ({
         // Individual town found
         zoomToTown(matchingTown)
       } else if (selectedCity && onCityNotFound) {
+        // When a subregion selection provides municipality highlights,
+        // selectedCity can be a label (e.g. "MetroWest") that is not a town name.
+        // In that case, skip the not-found warning.
+        if (Array.isArray(highlightedCities) && highlightedCities.length > 0) {
+          return
+        }
         // City not found on map
         onCityNotFound(selectedCity)
       }
     }
-  }, [matchingTown, selectedCity, onCityNotFound])
+  }, [matchingTown, selectedCity, onCityNotFound, shouldAutoZoomOnSelectedCity, highlightedCities])
+
+  // When subregion municipalities are highlighted, zoom to their combined extent.
+  useEffect(() => {
+    if (!shouldAutoZoomOnSelectedCity) return
+    if (!geojsonData || !Array.isArray(highlightedCities) || highlightedCities.length === 0) return
+
+    const highlightedTownNames = new Set(
+      getAllHighlightedTowns()
+        .map((town) => String(town).trim())
+        .filter(Boolean)
+    )
+    if (highlightedTownNames.size === 0) return
+
+    const features = geojsonData.features.filter((feature) =>
+      highlightedTownNames.has(String(feature?.properties?.town || '').trim())
+    )
+    if (features.length === 0) return
+
+    let minLng = Infinity
+    let maxLng = -Infinity
+    let minLat = Infinity
+    let maxLat = -Infinity
+
+    const processCoordinates = (coords) => {
+      if (!Array.isArray(coords)) return
+      if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+        const [lng, lat] = coords
+        minLng = Math.min(minLng, lng)
+        maxLng = Math.max(maxLng, lng)
+        minLat = Math.min(minLat, lat)
+        maxLat = Math.max(maxLat, lat)
+        return
+      }
+      coords.forEach(processCoordinates)
+    }
+
+    features.forEach((feature) => processCoordinates(feature?.geometry?.coordinates))
+    if (
+      minLng === Infinity ||
+      maxLng === -Infinity ||
+      minLat === Infinity ||
+      maxLat === -Infinity
+    ) {
+      return
+    }
+
+    const map = mapRef.current?.getMap?.()
+    if (map && typeof map.fitBounds === 'function') {
+      map.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat]
+        ],
+        {
+          padding: { top: 160, bottom: 60, left: 40, right: 40 },
+          duration: 1000,
+          maxZoom: 12
+        }
+      )
+    }
+  }, [highlightedCities, geojsonData, shouldAutoZoomOnSelectedCity])
+
+  // Open municipality tooltip when selected from dropdown filters.
+  useEffect(() => {
+    if (!openTooltipForSelectedCity || !selectedCity || !geojsonData) return
+
+    const townName = matchingTown || findMatchingTown(selectedCity)
+    if (!townName) return
+
+    const feature = geojsonData.features.find(
+      (item) => item?.properties?.town === townName
+    )
+    if (!feature) return
+
+    let minLng = Infinity
+    let maxLng = -Infinity
+    let minLat = Infinity
+    let maxLat = -Infinity
+
+    const processCoordinates = (coords) => {
+      if (!Array.isArray(coords)) return
+      if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+        const [lng, lat] = coords
+        minLng = Math.min(minLng, lng)
+        maxLng = Math.max(maxLng, lng)
+        minLat = Math.min(minLat, lat)
+        maxLat = Math.max(maxLat, lat)
+        return
+      }
+      coords.forEach(processCoordinates)
+    }
+
+    processCoordinates(feature.geometry?.coordinates)
+    if (
+      minLng === Infinity ||
+      maxLng === -Infinity ||
+      minLat === Infinity ||
+      maxLat === -Infinity
+    ) {
+      return
+    }
+
+    const centerLng = (minLng + maxLng) / 2
+    const centerLat = (minLat + maxLat) / 2
+    const updateTooltipPosition = () => {
+      const map = mapRef.current?.getMap?.()
+      if (!map || typeof map.project !== 'function') return
+
+      const projected = map.project([centerLng, centerLat])
+      const tooltipPayload = {
+        feature,
+        x: projected.x,
+        y: projected.y
+      }
+      setClickedTooltipInfo(tooltipPayload)
+      setHoverInfo(tooltipPayload)
+    }
+
+    // Set immediately for instant feedback...
+    updateTooltipPosition()
+    // ...and refresh after zoom animation so tooltip stays anchored.
+    const timeoutId = setTimeout(updateTooltipPosition, 1100)
+    return () => clearTimeout(timeoutId)
+  }, [openTooltipForSelectedCity, selectedCity, matchingTown, geojsonData])
+
+  // When primary filter resets (selectedCity cleared), clear map tooltip/hover windows.
+  useEffect(() => {
+    if (selectedCity) return
+    setClickedTooltipInfo(null)
+    setHoverInfo(null)
+    setIsHoverTooltipActive(false)
+    setPopupInfo(null)
+  }, [selectedCity])
 
   // Zoom to project's geographic focus extent when selectedProject changes
   useEffect(() => {
@@ -435,15 +613,20 @@ const MapComponent = ({
       .catch(error => console.error('Error loading GeoJSON:', error));
   }, []);
 
-  // Load MAPC subregion GeoJSON
+  // Load MAPC region outline from ArcGIS REST as GeoJSON.
   useEffect(() => {
-    fetch('/data/MAPC_Subregions.geojson')
+    fetch('https://services.arcgis.com/c5WwApDsDjRhIVkH/arcgis/rest/services/MAPC_Outline_(single_polygon)/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson')
       .then(response => response.json())
-      .then(data => setSubregionData(data))
-      .catch(error => console.error('Error loading Subregion GeoJSON:', error));
+      .then(data => setMapcRegionData(data))
+      .catch(error => console.error('Error loading MAPC region GeoJSON:', error));
   }, []);
 
   const onHover = (event) => {
+    if (hoverHideTimeoutRef.current) {
+      clearTimeout(hoverHideTimeoutRef.current);
+      hoverHideTimeoutRef.current = null;
+    }
+
     const {
       features,
       point: { x, y }
@@ -456,37 +639,102 @@ const MapComponent = ({
         y
       });
     } else {
-      setHoverInfo(null);
+      // Delay hide slightly so users can move into tooltip links.
+      hoverHideTimeoutRef.current = setTimeout(() => {
+        if (!isHoverTooltipActive) {
+          setHoverInfo(null);
+        }
+      }, 120);
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (hoverHideTimeoutRef.current) {
+        clearTimeout(hoverHideTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleMapClick = (event) => {
-    const { features } = event;
+    const { features, point } = event;
     const clickedFeature = features && features[0];
     if (clickedFeature && clickedFeature.properties && clickedFeature.properties.town) {
+      setClickedTooltipInfo({
+        feature: clickedFeature,
+        x: point.x,
+        y: point.y
+      });
       if (viewMode === 'year' && onMunicipalityClick) {
         // In year view, only allow clicking on municipalities with projects
         if (clickedFeature.properties.projectCount > 0) {
           onMunicipalityClick(clickedFeature.properties.town);
         }
       } else if (onCitySelect) {
+        // Keep subregion municipalities highlighted when user clicks a town.
+        // Subregion mode passes highlightedCities (munis) from Sidebar selection.
+        if (Array.isArray(highlightedCities) && highlightedCities.length > 0) {
+          return
+        }
         onCitySelect(clickedFeature.properties.town);
       }
+    } else {
+      setClickedTooltipInfo(null);
+      setHoverInfo(null);
+      setIsHoverTooltipActive(false);
     }
   };
 
   const cursor = hoverInfo ? 'pointer' : 'default';
 
+  const clickTooltipPosition = useMemo(() => {
+    if (!clickedTooltipInfo) return null
+    const { x, y } = clickedTooltipInfo
+    const ESTIMATED_MAX_HEIGHT = 340
+    const TOP_MARGIN = 16
+    const flipBelow = y < ESTIMATED_MAX_HEIGHT + TOP_MARGIN
+    if (flipBelow) {
+      return {
+        left: x + 10,
+        top: y + 14,
+        transform: 'translateX(-50%)',
+      }
+    }
+    return {
+      left: x + 10,
+      top: y - 10,
+      transform: 'translate(-50%, -100%)',
+    }
+  }, [clickedTooltipInfo])
+
+  const hoverTooltipPosition = useMemo(() => {
+    if (!hoverInfo?.feature?.properties?.town) return null
+    const { x, y } = hoverInfo
+    const flipBelow = y < 32
+    if (flipBelow) {
+      return {
+        left: x + 8,
+        top: y + 10,
+        transform: 'none',
+      }
+    }
+    return {
+      left: x + 8,
+      top: y - 8,
+      transform: 'translateY(-100%)',
+    }
+  }, [hoverInfo])
+
   return (
     <div className="w-full h-full relative">
-      {/* Toggle Switch for Subregion Layer */}
-      <div className="absolute top-25 right-2 z-20 bg-white  rounded shadow px-2 py-1 flex items-center space-x-2">
-        <label htmlFor="subregion-toggle" className="text-sm font-small text-gray-700">MAPC Subregions</label>
+      {/* Toggle switch for MAPC region outline */}
+      <div className="absolute top-25 right-2 z-20 bg-white rounded shadow px-2 py-1 flex items-center space-x-2">
+        <label htmlFor="subregion-toggle" className="text-sm font-small text-gray-700">Show MAPC Region</label>
         <input
           id="subregion-toggle"
           type="checkbox"
-          checked={showSubregionLayer}
-          onChange={() => setShowSubregionLayer(v => !v)}
+          checked={showMapcRegionLayer}
+          onChange={() => setShowMapcRegionLayer(v => !v)}
           className="accent-gray-500 w-5 h-5"
         />
       </div>
@@ -503,23 +751,15 @@ const MapComponent = ({
         ref={mapRef}
       >
         <NavigationControl position="top-right" />
-        {/* MAPC Subregion Layer */}
-        {showSubregionLayer && subregionData && (
-          <Source id="mapc-subregions" type="geojson" data={subregionData}>
+        {/* MAPC region outline (no fill) */}
+        {showMapcRegionLayer && mapcRegionData && (
+          <Source id="mapc-region-outline" type="geojson" data={mapcRegionData}>
             <Layer
-              id="mapc-subregions-fill"
-              type="fill"
-              paint={{
-                'fill-color': '#fbbf24', // amber-400
-                'fill-opacity': 0.18
-              }}
-            />
-            <Layer
-              id="mapc-subregions-outline"
+              id="mapc-region-outline-line"
               type="line"
               paint={{
-                'line-color': '#f59e42', // orange-400
-                'line-width': 2
+                'line-color': '#f59e42',
+                'line-width': 2.5
               }}
             />
           </Source>
@@ -564,7 +804,12 @@ const MapComponent = ({
                 'fill-opacity': 0.5
               }}
               filter={
-                selectedCity && selectedCity.toLowerCase().includes('state-wide')
+                matchingHighlightedTowns.length > 0
+                  ? (() => {
+                      const clickedTown = clickedTooltipInfo?.feature?.properties?.town
+                      return clickedTown ? ['==', 'town', clickedTown] : ['==', 'town', '']
+                    })()
+                  : selectedCity && selectedCity.toLowerCase().includes('state-wide')
                   ? ['has', 'town']  // Show all polygons when state-wide is selected
                   : (() => {
                       // Check if selectedCity is a MAPC subregion or region-wide
@@ -596,8 +841,8 @@ const MapComponent = ({
                 id="massachusetts-multi-highlight"
                 type="fill"
                 paint={{
-                  'fill-color': '#3b82f6', // blue for all highlighted polygons
-                  'fill-opacity': 0.6
+                  'fill-color': '#a855f7', // purple for subregion municipalities
+                  'fill-opacity': 0.55
                 }}
                 filter={
                   matchingHighlightedTowns.includes('STATE_WIDE_SPECIAL')
@@ -631,23 +876,112 @@ const MapComponent = ({
             </div>
           </Popup>
         )}
-        {/* Hover tooltip */}
-        {hoverInfo && (
+        {/* Hover tooltip (name only) */}
+        {hoverInfo && hoverInfo.feature?.properties?.town && hoverTooltipPosition && (
           <div
-            className="absolute z-10 bg-black text-white px-2 py-1 text-sm rounded shadow-lg pointer-events-none"
-            style={{
-              left: hoverInfo.x + 10,
-              top: hoverInfo.y - 10,
-              transform: 'translate(-50%, -100%)'
-            }}
+            className="pointer-events-none absolute z-[1080] rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-800 shadow"
+            style={hoverTooltipPosition}
           >
-            <div>
-              {hoverInfo.feature.properties.town}
-              {viewMode === 'year' && hoverInfo.feature.properties.projectCount !== undefined && (
-                <div className="text-xs mt-1">
-                  {hoverInfo.feature.properties.projectCount} project{hoverInfo.feature.properties.projectCount !== 1 ? 's' : ''} ({selectedYear})
+            {hoverInfo.feature.properties.town}
+          </div>
+        )}
+        {/* Click tooltip */}
+        {clickedTooltipInfo && clickTooltipPosition && (
+          <div
+            className="pointer-events-auto absolute z-[1080] w-[360px] max-w-[90vw] rounded-lg border border-gray-200 bg-white text-gray-800 shadow-2xl"
+            style={clickTooltipPosition}
+          >
+            <div className="p-3">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <div className="text-sm font-semibold tracking-wide text-gray-900">
+                  {clickedTooltipInfo.feature.properties.town}
+                </div>
+                <button
+                  type="button"
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setClickedTooltipInfo(null);
+                    setHoverInfo(null);
+                    setIsHoverTooltipActive(false);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+              {viewMode === 'year' && clickedTooltipInfo.feature.properties.projectCount !== undefined && (
+                <div className="mt-1 text-xs text-gray-500">
+                  {clickedTooltipInfo.feature.properties.projectCount} project{clickedTooltipInfo.feature.properties.projectCount !== 1 ? 's' : ''} ({selectedYear})
                 </div>
               )}
+              {(() => {
+                const town = clickedTooltipInfo?.feature?.properties?.town
+                if (!town) return null
+                const recentProjects =
+                  municipalityHoverProjectsByTown[town.toUpperCase()] ||
+                  municipalityHoverProjectsByTown[normalizeTownKey(town)] ||
+                  []
+                if (recentProjects.length === 0) return null
+
+                const projectsByYear = recentProjects.reduce((acc, item) => {
+                  if (!acc[item.year]) acc[item.year] = []
+                  acc[item.year].push(item)
+                  return acc
+                }, {})
+
+                const sortedYears = Object.keys(projectsByYear)
+                  .map((y) => parseInt(y, 10))
+                  .sort((a, b) => b - a)
+
+                return (
+                  <div className="mt-3 border-t border-gray-200 pt-2">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      Recent Projects (Last 5 Years)
+                    </div>
+                    <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                      {sortedYears.map((year) => {
+                        const yearProjects = projectsByYear[year] || []
+                        return (
+                          <div key={`${town}-${year}`}>
+                            <div className="mb-1 text-xs font-semibold text-gray-700">
+                              {year} ({yearProjects.length} projects)
+                            </div>
+                            <div className="space-y-1">
+                              {yearProjects.map((item) => (
+                                <button
+                                  key={`${town}-${year}-${item.id}`}
+                                  type="button"
+                                  className="block w-full rounded px-2 py-1 text-left text-xs leading-snug text-blue-700 hover:bg-blue-50 hover:text-blue-800 hover:underline"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (onHoverProjectClick) onHoverProjectClick(item.project)
+                                  }}
+                                >
+                                  <span>{item.name}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+              {(() => {
+                const town = clickedTooltipInfo?.feature?.properties?.town
+                if (!town) return null
+                const recentProjects =
+                  municipalityHoverProjectsByTown[town.toUpperCase()] ||
+                  municipalityHoverProjectsByTown[normalizeTownKey(town)] ||
+                  []
+                if (recentProjects.length > 0) return null
+                return (
+                  <div className="mt-2 text-xs text-gray-500">
+                    No linked recent projects found for this municipality.
+                  </div>
+                )
+              })()}
             </div>
           </div>
         )}

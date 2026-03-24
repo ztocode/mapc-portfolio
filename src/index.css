@@ -508,3 +508,48 @@ a:hover {
 .flex-shrink-0 {
   flex-shrink: 0;
 }
+
+/* Dual range slider (CodePen-inspired) */
+.year-range-slider .year-range-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  pointer-events: none; /* let only thumbs capture drag */
+}
+
+.year-range-slider .year-range-input::-webkit-slider-runnable-track {
+  height: 0;
+  background: transparent;
+}
+
+.year-range-slider .year-range-input::-moz-range-track {
+  height: 0;
+  background: transparent;
+  border: 0;
+}
+
+.year-range-slider .year-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid #0d6efd;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  margin-top: -6px;
+  cursor: pointer;
+}
+
+.year-range-slider .year-range-input::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 2px solid #0d6efd;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}

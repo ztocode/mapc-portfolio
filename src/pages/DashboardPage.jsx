@@ -6,6 +6,7 @@ import ProjectsTable from '../components/ProjectsTable'
 import BreakdownCard from '../components/BreakdownCard'
 import ProjectByDepartmentChart from '../components/projectByDepartmentChart'
 import MunicipalCollaborationChart from '../components/municipalCollaborationChart'
+import { normalizeLeadDepartments } from '../utils/departmentUtils'
 
 const DashboardPage = () => {
   const dispatch = useDispatch()
@@ -112,9 +113,7 @@ const DashboardPage = () => {
     }, {})
 
     const currentYearDepartmentBreakdown = currentYearProjects.reduce((acc, project) => {
-      const dept = project.leadDepartment || 'Not Assigned'
-      // Split departments by common delimiters and count each one
-      const departments = dept.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0)
+      const departments = normalizeLeadDepartments(project.leadDepartment || 'Not Assigned')
       departments.forEach(department => {
         acc[department] = (acc[department] || 0) + 1
       })
@@ -135,9 +134,7 @@ const DashboardPage = () => {
     }, {})
 
     const historicalDepartmentBreakdown = historicalProjects.reduce((acc, project) => {
-      const dept = project.leadDepartment || 'Not Assigned'
-      // Split departments by common delimiters and count each one
-      const departments = dept.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0)
+      const departments = normalizeLeadDepartments(project.leadDepartment || 'Not Assigned')
       departments.forEach(department => {
         acc[department] = (acc[department] || 0) + 1
       })
@@ -234,8 +231,7 @@ const DashboardPage = () => {
         return acc
       }, {}),
       departmentBreakdown: missingYearProjects.reduce((acc, project) => {
-        const dept = project.leadDepartment || 'Not Assigned'
-        const departments = dept.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0)
+        const departments = normalizeLeadDepartments(project.leadDepartment || 'Not Assigned')
         departments.forEach(department => {
           acc[department] = (acc[department] || 0) + 1
         })
@@ -315,8 +311,7 @@ const DashboardPage = () => {
     }
 
     return targetProjects.filter(project => {
-      const dept = project.leadDepartment || 'Not Assigned'
-      const departments = dept.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0)
+      const departments = normalizeLeadDepartments(project.leadDepartment || 'Not Assigned')
       return departments.includes(departmentName)
     })
   }
@@ -333,8 +328,7 @@ const DashboardPage = () => {
   const getAllDepartments = () => {
     const departments = new Set()
     projects.forEach(project => {
-      const dept = project.leadDepartment || 'Not Assigned'
-      const deptList = dept.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0)
+      const deptList = normalizeLeadDepartments(project.leadDepartment || 'Not Assigned')
       deptList.forEach(d => departments.add(d))
     })
     return Array.from(departments).sort()

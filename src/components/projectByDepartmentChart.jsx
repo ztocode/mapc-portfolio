@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import { selectAllProjects } from '../store/projectsSlice'
+import { normalizeLeadDepartments } from '../utils/departmentUtils'
 
 const ProjectByDepartmentChart = () => {
   const projects = useSelector(selectAllProjects)
@@ -14,10 +15,8 @@ const ProjectByDepartmentChart = () => {
     
     projects.forEach(project => {
       // Extract departments
-      if (project.leadDepartment) {
-        const deptList = project.leadDepartment.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0)
-        deptList.forEach(dept => deptSet.add(dept))
-      }
+      const deptList = normalizeLeadDepartments(project.leadDepartment)
+      deptList.forEach(dept => deptSet.add(dept))
       
       // Extract years
       if (project.projectYear) {
@@ -50,7 +49,7 @@ const ProjectByDepartmentChart = () => {
   // Calculate chart data based on selections
   const chartData = useMemo(() => {
     if (selectedDepartments.length === 0 || selectedYears.length === 0) {
-      return []
+      return {}
     }
 
     // Group data by year for stacked bar chart
@@ -61,8 +60,7 @@ const ProjectByDepartmentChart = () => {
       selectedDepartments.forEach(department => {
         const count = projects.filter(project => {
           // Check if project belongs to this department
-          const projectDepts = project.leadDepartment ? 
-            project.leadDepartment.split(/[,;|&]/).map(d => d.trim()).filter(d => d.length > 0) : []
+          const projectDepts = normalizeLeadDepartments(project.leadDepartment)
           
           // Check if project year matches
           let projectYear = null
@@ -250,7 +248,7 @@ const ProjectByDepartmentChart = () => {
       </div>
 
       {/* Summary */}
-      {chartData.length > 0 && (
+      {Object.keys(chartData).length > 0 && (
         <div className="mt-6 pt-4 border-t border-gray-200">
           <div className="text-sm text-gray-600">
             Total projects: {Object.values(yearTotals).reduce((sum, total) => sum + total, 0)}

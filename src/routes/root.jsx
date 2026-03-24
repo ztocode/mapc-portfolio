@@ -8,6 +8,8 @@ import { useState, useEffect } from 'react'
 const Root = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
     const [selectedCity, setSelectedCity] = useState(null)
+    const [selectedCitySource, setSelectedCitySource] = useState(null)
+    const [selectedCityTowns, setSelectedCityTowns] = useState([])
     const [viewMode, setViewMode] = useState('city')
     const [selectedGeographicCount, setSelectedGeographicCount] = useState(null)
     const [selectedProject, setSelectedProject] = useState(null)
@@ -25,29 +27,28 @@ const Root = () => {
     const [showStatusDropdown, setShowStatusDropdown] = useState(false)
     const [clickedCategoryType, setClickedCategoryType] = useState('')
     const [timeView, setTimeView] = useState('historical')
-    const [mapcSubregionsData, setMapcSubregionsData] = useState(null)
     const location = useLocation()
 
     // Determine current page
-    const currentPage = location.pathname === '/map' ? 'map' : 'dashboard'
-
-    // Load MAPC Subregions GeoJSON
-    useEffect(() => {
-        fetch('/data/MAPC_Subregions.geojson')
-            .then(response => response.json())
-            .then(data => setMapcSubregionsData(data))
-            .catch(error => console.error('Error loading MAPC Subregions GeoJSON:', error))
-    }, [])
+    const currentPage = location.pathname === '/map' || location.pathname === '/map/' ? 'map' : 'dashboard'
 
     // Reset selected city when leaving map page
     useEffect(() => {
         if (currentPage !== 'map') {
             setSelectedCity(null)
+            setSelectedCitySource(null)
+            setSelectedCityTowns([])
             setViewMode('city')
             setSelectedGeographicCount(null)
             setSelectedProject(null)
         }
     }, [currentPage])
+
+    const handleCitySelect = (city, options = {}) => {
+        setSelectedCity(city)
+        setSelectedCitySource(options?.source || null)
+        setSelectedCityTowns(Array.isArray(options?.towns) ? options.towns : [])
+    }
 
     const toggleSidebar = () => {
         setIsSidebarCollapsed(!isSidebarCollapsed)
@@ -66,18 +67,21 @@ const Root = () => {
                     onToggle={toggleSidebar}
                     currentPage={currentPage}
                     selectedCity={selectedCity}
-                    onCitySelect={setSelectedCity}
+                    onCitySelect={handleCitySelect}
                     viewMode={viewMode}
                     selectedGeographicCount={selectedGeographicCount}
                     onProjectSelect={setSelectedProject}
                     selectedProject={selectedProject}
-                    mapcSubregionsData={mapcSubregionsData}
                 />
             )}
             <div className={`${isSidebarVisible ? 'flex-1' : 'w-full'} transition-all duration-300 overflow-y-auto h-full`}>
                 <Outlet context={{ 
                     selectedCity, 
                     setSelectedCity,
+                    selectedCitySource,
+                    setSelectedCitySource,
+                    selectedCityTowns,
+                    setSelectedCityWithSource: handleCitySelect,
                     viewMode,
                     setViewMode,
                     selectedGeographicCount,
