@@ -104,7 +104,6 @@ export const fetchProjects = createAsyncThunk(
    
         return transformed
       })
-      console.log('Transformed data:', transformedData)
       return transformedData
 
     } catch (error) {
