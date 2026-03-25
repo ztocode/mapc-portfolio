@@ -3,13 +3,6 @@ import { useSelector } from 'react-redux'
 import { selectAllProjects } from '../store/projectsSlice'
 import { normalizeLeadDepartments } from '../utils/departmentUtils'
 
-function metroCommon2050GoalsToList(value) {
-  if (value == null) return []
-  if (Array.isArray(value)) return value.map((g) => String(g).trim()).filter(Boolean)
-  if (typeof value === 'string') return value.split(',').map((g) => g.trim()).filter(Boolean)
-  return []
-}
-
 /** Use `embedded` inside map / filtered-project panels so the table fills the host and matches map page layout. */
 const ProjectsTable = ({
   projects: overrideProjects,
@@ -21,7 +14,8 @@ const ProjectsTable = ({
   yearFilter = [],
   statusFilter = [],
   detailsPopupMode = 'overlay',
-  variant = 'default'
+  variant = 'default',
+  showStartEndDates = true
 }) => {
   const allProjects = overrideProjects || useSelector(selectAllProjects)
   const [selectedProjectDetails, setSelectedProjectDetails] = useState(null)
@@ -83,6 +77,19 @@ const ProjectsTable = ({
     direction: 'asc'
   })
 
+  const parseDateValue = (value) => {
+    if (value == null || value === '') return null
+    const d = new Date(value)
+    const t = d.getTime()
+    return Number.isNaN(t) ? null : t
+  }
+
+  const formatDateValue = (value) => {
+    const t = parseDateValue(value)
+    if (!t) return 'N/A'
+    return new Date(t).toLocaleDateString()
+  }
+
   // Sort projects
   const sortedProjects = useMemo(() => {
     const sorted = [...projects].sort((a, b) => {
@@ -98,6 +105,27 @@ const ProjectsTable = ({
         if (aY === null) return 1
         if (bY === null) return -1
         const cmp = aY - bY
+        return sortConfig.direction === 'asc' ? cmp : -cmp
+      }
+
+      if (sortConfig.key === 'startDate') {
+        const aT = parseDateValue(a.startDate)
+        const bT = parseDateValue(b.startDate)
+        if (aT === null && bT === null) return 0
+        if (aT === null) return 1
+        if (bT === null) return -1
+        const cmp = aT - bT
+        return sortConfig.direction === 'asc' ? cmp : -cmp
+      }
+
+      if (sortConfig.key === 'endDate') {
+        const getEndT = (p) => parseDateValue(p.actualCompletionDate || p.anticipatedEndDate)
+        const aT = getEndT(a)
+        const bT = getEndT(b)
+        if (aT === null && bT === null) return 0
+        if (aT === null) return 1
+        if (bT === null) return -1
+        const cmp = aT - bT
         return sortConfig.direction === 'asc' ? cmp : -cmp
       }
 
@@ -125,10 +153,21 @@ const ProjectsTable = ({
     }))
   }
 
-  const detailMetroGoalsList = useMemo(
-    () => metroCommon2050GoalsToList(selectedProjectDetails?.metroCommon2050goals),
-    [selectedProjectDetails]
-  )
+  const detailInternalCollaborators = useMemo(() => {
+    const raw = selectedProjectDetails?.internalCollaborators
+    if (raw == null || raw === '') return []
+    if (Array.isArray(raw)) return raw.map((v) => String(v).trim()).filter(Boolean)
+    if (typeof raw === 'string') return raw.split(',').map((s) => s.trim()).filter(Boolean)
+    return []
+  }, [selectedProjectDetails])
+
+  const detailTotalProjectBudgetText = useMemo(() => {
+    const raw = selectedProjectDetails?.totalProjectBudget
+    if (raw == null || raw === '') return 'N/A'
+    const n = typeof raw === 'number' ? raw : Number(raw)
+    if (!Number.isFinite(n)) return 'N/A'
+    return `$${n.toLocaleString()}`
+  }, [selectedProjectDetails])
 
   const SortIcon = ({ columnKey }) => {
     if (sortConfig.key !== columnKey) return <span className="text-gray-400">↕</span>
@@ -206,6 +245,30 @@ const ProjectsTable = ({
                     <SortIcon columnKey="projectYear" />
                   </button>
                 </th>
+                {showStartEndDates && (
+                  <>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button
+                        className="flex items-center space-x-1 hover:text-gray-700"
+                        onClick={() => handleSort('startDate')}
+                      >
+                        <span className="hidden sm:inline">Start Date</span>
+                        <span className="sm:hidden">Start</span>
+                        <SortIcon columnKey="startDate" />
+                      </button>
+                    </th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <button
+                        className="flex items-center space-x-1 hover:text-gray-700"
+                        onClick={() => handleSort('endDate')}
+                      >
+                        <span className="hidden sm:inline">End Date</span>
+                        <span className="sm:hidden">End</span>
+                        <SortIcon columnKey="endDate" />
+                      </button>
+                    </th>
+                  </>
+                )}
                 <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <button
                     className="flex items-center space-x-1 hover:text-gray-700"
@@ -249,17 +312,16 @@ const ProjectsTable = ({
                     if (!disableProjectSelection && onProjectSelect) {
                       onProjectSelect(project)
                     } else {
-                      setSelectedProjectDetails(project)
+                      // Spread into a new object so React re-renders the details view
+                      // even if the clicked project reference is unchanged.
+                      setSelectedProjectDetails({ ...project })
                     }
                   }}
                 >
                   <td className="px-3 sm:px-6 py-3 sm:py-4">
                     <div className="text-xs sm:text-sm font-medium text-gray-900 break-words">
-                      {project.name || 'Unnamed Project'}
+                      {project.name || 'N/A'}
                     </div>
-                    {project.projectDescription && (
-                      <div className="text-xs sm:text-sm text-gray-500 truncate max-w-[200px] sm:max-w-xs">{project.projectDescription}</div>
-                    )}
                   </td>
                   <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 break-words">
                     {project.leadDepartment || 'N/A'}
@@ -269,6 +331,16 @@ const ProjectsTable = ({
                       ? String(project.projectYear)
                       : 'N/A'}
                   </td>
+                  {showStartEndDates && (
+                    <>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 whitespace-nowrap">
+                        {formatDateValue(project.startDate)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 whitespace-nowrap">
+                        {formatDateValue(project.actualCompletionDate || project.anticipatedEndDate)}
+                      </td>
+                    </>
+                  )}
                   <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-900 break-words">
                     {project.projectManager || 'N/A'}
                   </td>
@@ -481,21 +553,26 @@ const ProjectsTable = ({
                         </p>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-600">MetroCommon 2050 Goals:</span>
+                        <span className="text-sm font-medium text-gray-600">Internal Collaborators:</span>
                         <div className="flex flex-wrap gap-2 mt-1">
-                          {detailMetroGoalsList.length > 0 ? (
-                            detailMetroGoalsList.map((goal, index) => (
+                          {detailInternalCollaborators.length > 0 ? (
+                            detailInternalCollaborators.map((name, index) => (
                               <span
-                                key={index}
-                                className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full"
+                                key={`${name}-${index}`}
+                                className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
                               >
-                                {goal}
+                                {name}
                               </span>
                             ))
                           ) : (
                             <span className="text-gray-500 text-sm">N/A</span>
                           )}
                         </div>
+                      </div>
+
+                      <div>
+                        <span className="text-sm font-medium text-gray-600">Total Project Budget:</span>
+                        <p className="text-sm text-gray-900 break-words mt-1">{detailTotalProjectBudgetText}</p>
                       </div>
                     </div>
                   </div>

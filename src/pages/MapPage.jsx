@@ -479,7 +479,7 @@ const MapPage = () => {
         <>
           {/* Non-blocking popup container (no full-screen mask) */}
           {!isProjectMinimized && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div className="fixed inset-0 z-[120] flex items-center justify-center pointer-events-none">
               <div
                 className="pointer-events-auto bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col w-[1000px] h-[460px]"
                 style={{
@@ -547,6 +547,24 @@ const MapPage = () => {
                           <p className="text-gray-900 break-words">{selectedProject.projectYear || 'N/A'}</p>
                         </div>
                         <div>
+                          <span className="text-gray-600">Start Date:</span>
+                          <p className="text-gray-900 break-words">
+                            {selectedProject.startDate
+                              ? new Date(selectedProject.startDate).toLocaleDateString()
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">End Date:</span>
+                          <p className="text-gray-900 break-words">
+                            {selectedProject.actualCompletionDate
+                              ? new Date(selectedProject.actualCompletionDate).toLocaleDateString()
+                              : selectedProject.anticipatedEndDate
+                                ? new Date(selectedProject.anticipatedEndDate).toLocaleDateString()
+                                : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
                           <span className="text-gray-600">Project Manager(s):</span>
                           <p className="text-gray-900 break-words">{selectedProject.projectManager || 'N/A'}</p>
                         </div>
@@ -557,6 +575,41 @@ const MapPage = () => {
                         <div>
                           <span className="text-gray-600">Project Description:</span>
                           <p className="text-gray-900 break-words">{selectedProject.projectDescription || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Total Project Budget:</span>
+                          <p className="text-gray-900 break-words">
+                            {selectedProject.totalProjectBudget != null &&
+                            selectedProject.totalProjectBudget !== '' &&
+                            Number.isFinite(Number(selectedProject.totalProjectBudget))
+                              ? `$${Number(selectedProject.totalProjectBudget).toLocaleString()}`
+                              : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Internal Collaborators:</span>
+                          {(() => {
+                            const raw = selectedProject.internalCollaborators
+                            const list = Array.isArray(raw)
+                              ? raw.map((v) => String(v).trim()).filter(Boolean)
+                              : typeof raw === 'string'
+                                ? raw.split(',').map((s) => s.trim()).filter(Boolean)
+                                : []
+                            return list.length > 0 ? (
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {list.map((name, idx) => (
+                                  <span
+                                    key={`${name}-${idx}`}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full"
+                                  >
+                                    {name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-gray-500 text-sm">N/A</p>
+                            )
+                          })()}
                         </div>
                         <div>
                           <span className="text-gray-600">Project Type:</span>
@@ -581,29 +634,7 @@ const MapPage = () => {
                             )}
                           </div>
                         </div>
-                        <div className="col-span-2">
-                          <span className="text-gray-600">MetroCommon 2050 Goals:</span>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {selectedProject.metroCommon2050goals ? (
-                              (Array.isArray(selectedProject.metroCommon2050goals)
-                                ? selectedProject.metroCommon2050goals
-                                : String(selectedProject.metroCommon2050goals).split(',')
-                              )
-                                .map(goal => String(goal).trim())
-                                .filter(goal => goal.length > 0)
-                                .map((goal, index) => (
-                                  <span
-                                    key={index}
-                                    className="inline-flex items-center px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full"
-                                  >
-                                    {goal}
-                                  </span>
-                                ))
-                            ) : (
-                              <span className="text-gray-500 text-sm">N/A</span>
-                            )}
-                          </div>
-                        </div>
+                        
                       </div>
                     </div>
 
@@ -653,7 +684,7 @@ const MapPage = () => {
 
           {/* Minimized popup - positioned in corner without blocking interactions */}
           {isProjectMinimized && (
-            <div className="fixed bottom-4 right-4 z-50">
+            <div className="fixed bottom-4 right-4 z-[120]">
               <div className="bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col w-80 h-16">
                 {/* Header */}
                 <div className="popup-header flex items-center justify-between border-b border-gray-200 bg-gray-50 rounded-t-lg cursor-grab flex-shrink-0 p-2">

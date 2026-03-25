@@ -10,6 +10,11 @@ import {
 } from '../store/municipalityCollaborationSlice'
 
 const SPLIT_REGEX = /[,;|&]/
+
+/** Compact map sidebar dropdown: short height, MAPC blue focus */
+const compactLocationSelectClass =
+  'h-8 w-full appearance-none rounded-lg border border-gray-200 bg-white py-0 pl-2.5 pr-7 text-xs font-medium leading-8 text-gray-800 shadow-sm transition-colors hover:border-gray-300 focus:border-[#2862a0] focus:outline-none focus:ring-2 focus:ring-[#2862a0]/20'
+
 const toBoolean = (value) => {
   return value === true ? true : false
 }
@@ -67,6 +72,7 @@ const Sidebar = ({
   viewMode = 'city',
   onProjectSelect = null,
   selectedProject = null,
+  onFilterHighlightedTowns = null,
 }) => {
   // Don't render sidebar for dashboard page or year view mode
   if (currentPage === 'dashboard' || viewMode === 'year') {
@@ -351,6 +357,81 @@ const Sidebar = ({
     selectedPrimaryValue
   ])
 
+  // Light-green map highlight for municipalities that still have linked projects
+  // after the current filters (year/department/search + selected primary scope).
+  // Uses `municipalityCollaboration.muni` + `projectsIDlist` relationship.
+  const filterHighlightedTowns = useMemo(() => {
+    const scopeMunisUpper =
+      primaryType === 'municipality' && selectedMunicipality
+        ? new Set([String(selectedMunicipality).trim().toUpperCase()])
+        : primaryType === 'subregion' && selectedSubregion
+          ? new Set(
+              (subregionMetaFromCollaborationSlice[selectedSubregion]?.munis || [])
+                .map((t) => String(t).trim().toUpperCase())
+                .filter(Boolean)
+            )
+          : new Set()
+
+    const hasScopedSelection = scopeMunisUpper.size > 0
+
+    const filteredProjectIdSet = new Set()
+    const filteredProjectNamesLower = new Set()
+    filteredProjects.forEach((project) => {
+      if (project?.recordId != null) {
+        filteredProjectIdSet.add(String(project.recordId).trim())
+      }
+      if (project?.id != null) {
+        filteredProjectIdSet.add(String(project.id).trim())
+      }
+      if (project?.name) {
+        filteredProjectNamesLower.add(String(project.name).toLowerCase().trim())
+      }
+    })
+
+    const result = new Set()
+
+    municipalityCollaborationData.forEach((row) => {
+      if (!toBoolean(row?.isMuni)) return
+
+      const muniName = typeof row?.muni === 'string' ? row.muni.trim() : ''
+      if (!muniName) return
+
+      const muniUpper = muniName.toUpperCase()
+      if (hasScopedSelection && !scopeMunisUpper.has(muniUpper)) return
+
+      const linkedIds = Array.isArray(row?.projectsIDlist) ? row.projectsIDlist : []
+      const hasIdMatch = linkedIds.some((id) =>
+        filteredProjectIdSet.has(String(id).trim())
+      )
+
+      if (hasIdMatch) {
+        result.add(muniName)
+        return
+      }
+
+      // Fallback when `projectsIDlist` is missing/incomplete
+      const involved = Array.isArray(row?.involvedProjects) ? row.involvedProjects : []
+      const hasNameMatch = involved.some((name) =>
+        filteredProjectNamesLower.has(String(name).toLowerCase().trim())
+      )
+      if (hasNameMatch) result.add(muniName)
+    })
+
+    return Array.from(result)
+  }, [
+    filteredProjects,
+    primaryType,
+    selectedMunicipality,
+    selectedSubregion,
+    subregionMetaFromCollaborationSlice,
+    municipalityCollaborationData
+  ])
+
+  useEffect(() => {
+    if (!onFilterHighlightedTowns) return
+    onFilterHighlightedTowns(filterHighlightedTowns)
+  }, [filterHighlightedTowns, onFilterHighlightedTowns])
+
   const handleProjectClick = (project) => {
     if (onProjectSelect) onProjectSelect(project)
   }
@@ -463,35 +544,57 @@ const Sidebar = ({
 
               {primaryType === 'municipality' ? (
                 <div>
-                  <label className="form-label text-xs font-semibold text-gray-700 mb-1">Municipality</label>
-                  <select
-                    value={selectedMunicipality}
-                    onChange={(e) => handleMunicipalityChange(e.target.value)}
-                    className="form-select form-select-sm w-full"
-                  >
-                    <option value="">
-                      Select a municipality...
-                    </option>
-                    {municipalityOptions.map((city) => (
-                      <option key={city} value={city}>{city}</option>
-                    ))}
-                  </select>
+                  <label className="mb-0.5 block text-xs font-semibold text-gray-700">
+                    Municipality
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedMunicipality}
+                      onChange={(e) => handleMunicipalityChange(e.target.value)}
+                      className={compactLocationSelectClass}
+                      aria-label="Select municipality"
+                    >
+                      <option value="">Select…</option>
+                      {municipalityOptions.map((city) => (
+                        <option key={city} value={city}>
+                          {city}
+                        </option>
+                      ))}
+                    </select>
+                    <span
+                      className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
+                      aria-hidden
+                    >
+                      <i className="fas fa-chevron-down text-[10px]" />
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <div>
-                  <label className="form-label text-xs font-semibold text-gray-700 mb-1">Subregion</label>
-                  <select
-                    value={selectedSubregion}
-                    onChange={(e) => handleSubregionChange(e.target.value)}
-                    className="form-select form-select-sm w-full"
-                  >
-                    <option value="">
-                      Select a subregion...
-                    </option>
-                    {subregionOptions.map((subregion) => (
-                      <option key={subregion} value={subregion}>{subregion}</option>
-                    ))}
-                  </select>
+                  <label className="mb-0.5 block text-xs font-semibold text-gray-700">
+                    Subregion
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedSubregion}
+                      onChange={(e) => handleSubregionChange(e.target.value)}
+                      className={compactLocationSelectClass}
+                      aria-label="Select subregion"
+                    >
+                      <option value="">Select…</option>
+                      {subregionOptions.map((subregion) => (
+                        <option key={subregion} value={subregion}>
+                          {subregion}
+                        </option>
+                      ))}
+                    </select>
+                    <span
+                      className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
+                      aria-hidden
+                    >
+                      <i className="fas fa-chevron-down text-[10px]" />
+                    </span>
+                  </div>
                 </div>
               )}
 
@@ -608,8 +711,12 @@ const Sidebar = ({
               <ProjectsTable
                 variant="embedded"
                 projects={filteredProjects}
-                selectedProject={null}
+                selectedProject={selectedProject}
                 disableProjectSelection={false}
+                showStartEndDates={false}
+                onProjectSelect={(project) => {
+                  if (onProjectSelect) onProjectSelect(project)
+                }}
                 detailsPopupMode="aboveTable"
               />
             </div>

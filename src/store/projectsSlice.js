@@ -84,6 +84,7 @@ export const fetchProjects = createAsyncThunk(
           projectManager: "Name (from Project Manager)",
           leadDepartment: "Name (from Lead Department/Team)",
           internalCollaborators: "Internal Collaborators (Dept and Teams Only)",
+          totalProjectBudget:"Total Project Budget",
           projectYear: "Project Year",
           startDate: "Start Date",
           anticipatedEndDate: "Anticipated End Date",
@@ -101,9 +102,10 @@ export const fetchProjects = createAsyncThunk(
         // Add record ID and created time
         transformed.id = record.id
         transformed.createdTime = record.createdTime
-   
+        console.log(record.totalProjectBudget)
         return transformed
       })
+      
       return transformedData
 
     } catch (error) {
