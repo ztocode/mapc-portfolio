@@ -396,7 +396,9 @@ const MapPage = () => {
               })
             : null}
           selectedCity={selectedCity}
-          shouldAutoZoomOnSelectedCity={selectedCitySource === 'map' || selectedCitySource === 'filter'}
+          // Only zoom when the user clicked on the map.
+          // Dropdown-filter selections should keep the current zoom level.
+          shouldAutoZoomOnSelectedCity={selectedCitySource === 'map'}
           openTooltipForSelectedCity={selectedCitySource === 'filter'}
           highlightedCities={highlightedCities}
           cityColors={cityColors}
