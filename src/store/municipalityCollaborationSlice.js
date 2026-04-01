@@ -55,8 +55,8 @@ export const fetchMunicipalityCollaborations = createAsyncThunk(
         isSubregion: 'IsSubregion',
         mapcSubRegion: 'MAPC Sub Region',
         munis: 'munis',
-        projectsIDlist: "Projects",
-        involvedProjects:"Project Name (from Projects)"
+        projectsIDlist: 'Projects',
+        involvedProjects: 'Project Name (from Projects)',
       }
 
       const transformedData = allRecords.map((record) => {

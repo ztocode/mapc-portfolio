@@ -91,6 +91,7 @@ export const fetchProjects = createAsyncThunk(
           attachmentUrls: "Attachment URLs",
           actualCompletionDate: "Actual Completion Date",
           metroCommon2050goals: "MetroCommon 2050 Goals",
+          allParticipatingMunicipalities:"All Participating Municipalities"
         }
 
         Object.entries(fieldMapping).forEach(([newKey, airtableField]) => {
@@ -102,7 +103,6 @@ export const fetchProjects = createAsyncThunk(
         // Add record ID and created time
         transformed.id = record.id
         transformed.createdTime = record.createdTime
-        console.log(record.totalProjectBudget)
         return transformed
       })
       

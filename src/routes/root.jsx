@@ -3,58 +3,55 @@ import Navbar from '../components/Navbar'
 import Sidebar from '../components/Sidebar'
 import Footer from '../components/Footer'
 import { Outlet, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 const Root = () => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-    const [selectedCity, setSelectedCity] = useState(null)
-    const [selectedCitySource, setSelectedCitySource] = useState(null)
-    const [selectedCityTowns, setSelectedCityTowns] = useState([])
+    /** Municipality name or subregion label from sidebar / map (not always a GeoJSON town key). */
+    const [mapFilterLabel, setMapFilterLabel] = useState(null)
+    /** `'filter'` | `'map'` | null — how {@link mapFilterLabel} was chosen. */
+    const [mapFilterSource, setMapFilterSource] = useState(null)
+    /** Town names from Airtable `munis` (or fallback) to draw outline polygons on the map. */
+    const [mapOutlineTownNames, setMapOutlineTownNames] = useState([])
     const [viewMode, setViewMode] = useState('city')
-    const [selectedGeographicCount, setSelectedGeographicCount] = useState(null)
     const [selectedProject, setSelectedProject] = useState(null)
-    const [tableSearchTerm, setTableSearchTerm] = useState('')
-    const [selectedDepartments, setSelectedDepartments] = useState([])
-    const [selectedProjectTypes, setSelectedProjectTypes] = useState([])
-    const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false)
-    const [showProjectTypeDropdown, setShowProjectTypeDropdown] = useState(false)
-    const [selectedDepartment, setSelectedDepartment] = useState(null)
-    const [departmentProjects, setDepartmentProjects] = useState([])
-    const [showDepartmentPopup, setShowDepartmentPopup] = useState(false)
-    const [selectedYears, setSelectedYears] = useState([])
-    const [showYearDropdown, setShowYearDropdown] = useState(false)
-    const [selectedStatuses, setSelectedStatuses] = useState([])
-    const [showStatusDropdown, setShowStatusDropdown] = useState(false)
-    const [clickedCategoryType, setClickedCategoryType] = useState('')
-    const [timeView, setTimeView] = useState('historical')
+    const [mapFilteredProjects, setMapFilteredProjects] = useState(null)
+    const [suppressMapChoropleth, setSuppressMapChoropleth] = useState(false)
     const location = useLocation()
 
-    // Determine current page
     const currentPage = location.pathname === '/map' || location.pathname === '/map/' ? 'map' : 'dashboard'
 
-    // Reset selected city when leaving map page
     useEffect(() => {
         if (currentPage !== 'map') {
-            setSelectedCity(null)
-            setSelectedCitySource(null)
-            setSelectedCityTowns([])
+            setMapFilterLabel(null)
+            setMapFilterSource(null)
+            setMapOutlineTownNames([])
             setViewMode('city')
-            setSelectedGeographicCount(null)
             setSelectedProject(null)
+            setMapFilteredProjects(null)
+            setSuppressMapChoropleth(false)
         }
     }, [currentPage])
 
-    const handleCitySelect = (city, options = {}) => {
-        setSelectedCity(city)
-        setSelectedCitySource(options?.source || null)
-        setSelectedCityTowns(Array.isArray(options?.towns) ? options.towns : [])
-    }
+    const handleFilteredProjectsForMapChange = useCallback((projects) => {
+        setMapFilteredProjects(projects)
+    }, [])
+
+    const handleSubregionChoroplethSuppressedChange = useCallback((suppressed) => {
+        setSuppressMapChoropleth(Boolean(suppressed))
+    }, [])
+
+    /** Single entry point for map filter state (label, source, optional outline town list). */
+    const applyMapFilterSelection = useCallback((label, options = {}) => {
+        setMapFilterLabel(label)
+        setMapFilterSource(options?.source ?? null)
+        setMapOutlineTownNames(Array.isArray(options?.towns) ? options.towns : [])
+    }, [])
 
     const toggleSidebar = () => {
         setIsSidebarCollapsed(!isSidebarCollapsed)
     }
 
-    // Check if sidebar should be visible
     const isSidebarVisible = currentPage !== 'dashboard' && viewMode !== 'year'
 
     return (
@@ -66,29 +63,27 @@ const Root = () => {
                     isCollapsed={isSidebarCollapsed} 
                     onToggle={toggleSidebar}
                     currentPage={currentPage}
-                    selectedCity={selectedCity}
-                    onCitySelect={handleCitySelect}
+                    onMapFilterChange={applyMapFilterSelection}
                     viewMode={viewMode}
-                    selectedGeographicCount={selectedGeographicCount}
                     onProjectSelect={setSelectedProject}
                     selectedProject={selectedProject}
+                    onFilteredProjectsForMapChange={handleFilteredProjectsForMapChange}
+                    onSubregionChoroplethSuppressedChange={handleSubregionChoroplethSuppressedChange}
                 />
             )}
             <div className={`${isSidebarVisible ? 'flex-1' : 'w-full'} transition-all duration-300 overflow-y-auto h-full`}>
                 <Outlet context={{ 
-                    selectedCity, 
-                    setSelectedCity,
-                    selectedCitySource,
-                    setSelectedCitySource,
-                    selectedCityTowns,
-                    setSelectedCityWithSource: handleCitySelect,
+                    mapFilterLabel,
+                    mapFilterSource,
+                    mapOutlineTownNames,
+                    applyMapFilterSelection,
                     viewMode,
                     setViewMode,
-                    selectedGeographicCount,
-                    setSelectedGeographicCount,
                     selectedProject,
                     setSelectedProject,
                     isSidebarCollapsed,
+                    mapFilteredProjects,
+                    suppressMapChoropleth,
                 }} />
             </div>
         </main>
@@ -97,4 +92,4 @@ const Root = () => {
     )
 }
 
-export default Root;
+export default Root

@@ -1,4 +1,4 @@
-import Map from '../components/Map'
+import MapView from '../components/Map'
 import { useSelector } from 'react-redux'
 import { useDispatch } from 'react-redux'
 import { selectAllProjects, fetchProjects, selectProjectsLoading, selectProjectsError } from '../store/projectsSlice'
@@ -9,30 +9,39 @@ import {
 import ProjectsTable from '../components/ProjectsTable'
 import { useMemo, useEffect, useState, useRef, useCallback } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import { participatingMunicipalityTowns } from '../utils/geographicFocus'
+
+
+
+const projectDedupeKey = (project) => {
+  if (!project) return ''
+  const r = project.recordId != null ? String(project.recordId).trim() : ''
+  if (r) return r
+  return project.id != null ? String(project.id).trim() : ''
+}
 
 const MapPage = () => {
-  const normalizeTownKey = (value) => {
-    if (!value) return ''
-    return String(value)
-      .toUpperCase()
-      .replace(/^CITY OF\s+/, '')
-      .replace(/^TOWN OF\s+/, '')
-      .replace(/[^A-Z0-9\s-]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+
+  const parseYearFromProject = (project) => {
+    if (project?.parsedYear != null) return project.parsedYear
+    if (!project?.projectYear) return null
+    const y = parseInt(String(project.projectYear).trim(), 10)
+    if (Number.isNaN(y) || y <= 1900 || y > new Date().getFullYear() + 10) return null
+    return y
   }
 
-  const { 
-    selectedCity, 
-    setSelectedCity,
-    selectedCitySource,
-    selectedCityTowns,
-    setSelectedCityWithSource,
+  const {
+    mapFilterLabel,
+    mapFilterSource,
+    mapOutlineTownNames,
+    applyMapFilterSelection,
     viewMode,
     setViewMode,
     selectedProject,
     setSelectedProject,
-    isSidebarCollapsed
+    isSidebarCollapsed,
+    mapFilteredProjects,
+    suppressMapChoropleth,
   } = useOutletContext()
   const dispatch = useDispatch()
   const allProjects = useSelector(selectAllProjects)
@@ -81,7 +90,7 @@ const MapPage = () => {
   useEffect(() => {
     // Keep municipality project list popup hidden for explicit source-driven selections
     // (dropdown/map). Tooltip + left panel are used instead.
-    if (selectedCity && viewMode === 'city' && !selectedCitySource) {
+    if (mapFilterLabel && viewMode === 'city' && !mapFilterSource) {
       setPopupVisible(true)
       setIsMinimized(true) // Start collapsed by default
       // Position popup at bottom of screen, moved right and up
@@ -92,21 +101,20 @@ const MapPage = () => {
     } else {
       setPopupVisible(false)
     }
-  }, [selectedCity, viewMode, selectedCitySource])
+  }, [mapFilterLabel, viewMode, mapFilterSource])
 
 
-  // Highlight all municipalities from selected subregion (munis column).
-  const highlightedCities = selectedCityTowns || []
-  const cityColors = {}
+  /** GeoJSON town names (or raw labels resolved in Map) for filter-driven outlines. */
+  const filterOutlineTownNames = mapOutlineTownNames || []
 
-  // Show project popup when project is selected
+  // Show project popup when project is selected (placed high enough to sit above map tooltips, z-[1100])
   useEffect(() => {
     if (selectedProject) {
       setProjectPopupVisible(true)
       setIsProjectMinimized(false)
       setProjectPopupPosition({
-        x: 400, // Moved more to the right
-        y: window.innerHeight - 320 // Position at bottom of map view (300px height + 20px margin)
+        x: 400,
+        y: Math.max(72, Math.round(window.innerHeight * 0.12)),
       })
     } else {
       setProjectPopupVisible(false)
@@ -115,87 +123,108 @@ const MapPage = () => {
 
   // Fuzzy filter projects by city
   const cityProjects = useMemo(() => {
-    if (!selectedCity) return []
-    const city = selectedCity.toLowerCase()
-    return allProjects.filter(p =>
-      typeof p.geographicFocus === 'string' &&
-      p.geographicFocus.toLowerCase().includes(city)
-    )
-  }, [selectedCity, allProjects])
+    if (!mapFilterLabel) return []
+    const city = mapFilterLabel.toLowerCase()
+    return allProjects.filter((p) => {
+      const towns = participatingMunicipalityTowns(p.allParticipatingMunicipalities)
+      return towns.some((t) => {
+        const tl = t.toLowerCase()
+        return tl.includes(city) || city.includes(tl)
+      })
+    })
+  }, [mapFilterLabel, allProjects])
 
   const currentProjects = cityProjects
+
+  // Same filtered set as the map sidebar (all projects when sidebar has not synced yet).
+  const projectsForMap = mapFilteredProjects ?? allProjects
 
   // Handle project selection for highlighting
   const handleProjectSelect = (project) => {
     setSelectedProject(project)
   }
 
-  const municipalityHoverProjectsByTown = useMemo(() => {
-    // Match municipalityCollaboration.projectsIDlist -> projects.recordId,
-    // then keep only projects from the most recent five distinct years.
-    const projectsByRecordId = new globalThis.Map()
-    allProjects.forEach((project) => {
-      const recordIdKey = project.recordId != null ? String(project.recordId).trim() : ''
-      const airtableIdKey = project.id != null ? String(project.id).trim() : ''
-      if (recordIdKey) projectsByRecordId.set(recordIdKey, project)
-      if (airtableIdKey) projectsByRecordId.set(airtableIdKey, project)
+  const { choroplethCountsByTown, municipalityHoverProjectsByTown } = useMemo(() => {
+    const attribution = new Map()
+
+    const addProjectToTown = (townLabel, project) => {
+      const pk = projectDedupeKey(project)
+      if (!pk || !townLabel) return
+      const trimmed = String(townLabel).trim()
+      if (!trimmed) return
+      const canon = trimmed.toUpperCase()
+      if (!canon) return
+      if (!attribution.has(canon)) attribution.set(canon, new Set())
+      attribution.get(canon).add(pk)
+    }
+
+    // Choropleth + tooltips: only projects slice "All Participating Municipalities"
+    // (string or string[]; comma/semicolon splits; ['N/A'] yields no towns).
+    projectsForMap.forEach((project) => {
+      const pk = projectDedupeKey(project)
+      if (!pk) return
+      participatingMunicipalityTowns(project.allParticipatingMunicipalities).forEach((town) => {
+        addProjectToTown(town, project)
+      })
     })
 
-    const result = {}
-    municipalityCollaborations.forEach((row) => {
-      const muniName = row.muni
-      if (!muniName) return
+    const counts = {}
+    attribution.forEach((set, canon) => {
+      const c = set.size
+      counts[canon] = c
+      counts[String(canon).toUpperCase()] = c
+    })
 
-      const linkedIds = Array.isArray(row?.projectsIDlist) ? row.projectsIDlist : []
-      const matchedProjects = linkedIds
-        .map((id) => projectsByRecordId.get(String(id).trim()))
+    const projectByKey = new Map()
+    projectsForMap.forEach((p) => {
+      const pk = projectDedupeKey(p)
+      if (pk) projectByKey.set(pk, p)
+    })
+
+    const sortDecorated = (a, b) => {
+      if (a.year == null && b.year == null) {
+        return (a.project.name || '').localeCompare(b.project.name || '', undefined, {
+          sensitivity: 'base',
+        })
+      }
+      if (a.year == null) return 1
+      if (b.year == null) return -1
+      if (b.year !== a.year) return b.year - a.year
+      return (a.project.name || '').localeCompare(b.project.name || '', undefined, {
+        sensitivity: 'base',
+      })
+    }
+
+    const municipalityHoverProjectsByTown = {}
+    attribution.forEach((set, canon) => {
+      const decorated = Array.from(set)
+        .map((pk) => {
+          const project = projectByKey.get(pk)
+          if (!project) return null
+          return { project, year: parseYearFromProject(project) }
+        })
         .filter(Boolean)
 
-      const withYear = matchedProjects.map((project) => {
-        let parsedYear = null
-        if (project.projectYear) {
-          const year = parseInt(String(project.projectYear).trim(), 10)
-          if (!isNaN(year) && year > 1900 && year <= new Date().getFullYear() + 10) {
-            parsedYear = year
-          }
-        }
-        return { project, parsedYear }
-      })
+      decorated.sort(sortDecorated)
 
-      const mostRecentFiveYears = Array.from(
-        new Set(withYear.map((item) => item.parsedYear).filter(Boolean))
-      )
-        .sort((a, b) => b - a)
-        .slice(0, 5)
+      const list = decorated.map(({ project, year }) => ({
+        id: project.id,
+        name: project.name || 'Unnamed Project',
+        year,
+        project,
+      }))
 
-      const recentProjects = withYear
-        .filter((item) => item.parsedYear && mostRecentFiveYears.includes(item.parsedYear))
-        .sort((a, b) => b.parsedYear - a.parsedYear)
-        .map((item) => ({
-          id: item.project.id,
-          name: item.project.name || 'Unnamed Project',
-          year: item.parsedYear,
-          project: item.project
-        }))
-
-      const upperKey = String(muniName).toUpperCase()
-      const normalizedKey = normalizeTownKey(muniName)
-      result[upperKey] = recentProjects
-      if (normalizedKey) result[normalizedKey] = recentProjects
+      const upperKey = String(canon).toUpperCase()
+      municipalityHoverProjectsByTown[upperKey] = list
+      municipalityHoverProjectsByTown[canon] = list
     })
 
-    return result
-  }, [allProjects, municipalityCollaborations])
+    return { choroplethCountsByTown: counts, municipalityHoverProjectsByTown }
+  }, [projectsForMap])
 
   const handleHoverProjectClick = useCallback((project) => {
     if (!project) return
-    // Open project details popup directly from tooltip click.
     setSelectedProject({ ...project })
-    setProjectPopupVisible(true)
-    setProjectPopupPosition({
-      x: 400,
-      y: window.innerHeight - 320
-    })
   }, [setSelectedProject])
 
   // Handle city not found on map
@@ -321,7 +350,7 @@ const MapPage = () => {
   // Handle close
   const handleClose = () => {
     setPopupVisible(false)
-    setSelectedCity(null)
+    applyMapFilterSelection(null, { towns: [] })
   }
 
   // Loading mask component
@@ -356,11 +385,8 @@ const MapPage = () => {
 
   // Effect to trigger map resize when sidebar collapses/expands
   useEffect(() => {
-    console.log('Sidebar collapsed state changed to:', isSidebarCollapsed);
-    // Trigger window resize to force map recalculation
     setTimeout(() => {
       window.dispatchEvent(new Event('resize'));
-      console.log('Window resize event dispatched for sidebar collapse');
     }, 100);
   }, [isSidebarCollapsed]);
 
@@ -385,23 +411,17 @@ const MapPage = () => {
       <div 
         className="w-full flex-1 min-h-0 relative"
       >
-        <Map 
-          onCitySelect={viewMode === 'city'
-            ? ((city) => {
-                if (setSelectedCityWithSource) {
-                  setSelectedCityWithSource(city, { source: 'map' })
-                } else {
-                  setSelectedCity(city)
-                }
+        <MapView
+          onMapTownClick={viewMode === 'city'
+            ? ((townName) => {
+                applyMapFilterSelection(townName, { source: 'map' })
               })
             : null}
-          selectedCity={selectedCity}
-          // Only zoom when the user clicked on the map.
-          // Dropdown-filter selections should keep the current zoom level.
-          shouldAutoZoomOnSelectedCity={selectedCitySource === 'map'}
-          openTooltipForSelectedCity={selectedCitySource === 'filter'}
-          highlightedCities={highlightedCities}
-          cityColors={cityColors}
+          mapFilterLabel={mapFilterLabel}
+          // Keep the current view when selecting a municipality (no zoom/pan on map click).
+          shouldAutoZoomOnMapFilter={false}
+          openTooltipForSidebarFilter={mapFilterSource === 'filter'}
+          filterOutlineTownNames={filterOutlineTownNames}
           viewMode={viewMode}
           selectedProject={null}
           onCityNotFound={handleCityNotFound}
@@ -411,11 +431,16 @@ const MapPage = () => {
           isSidebarCollapsed={isSidebarCollapsed}
           municipalityHoverProjectsByTown={municipalityHoverProjectsByTown}
           onHoverProjectClick={handleHoverProjectClick}
+          choroplethCountsByTown={
+            suppressMapChoropleth ? null : choroplethCountsByTown
+          }
+          filteredMapProjectCount={projectsForMap.length}
+          municipalityCollaborations={municipalityCollaborations}
         />
       </div>
       
       {/* Popup Window - Show in municipality mode */}
-      {popupVisible && selectedCity && viewMode === 'city' && (
+      {popupVisible && mapFilterLabel && viewMode === 'city' && (
         <div
           className={`fixed z-50 flex flex-col bg-white rounded-lg shadow-xl border border-gray-200 ${
             isMinimized 
@@ -439,7 +464,7 @@ const MapPage = () => {
             <h2 className={`font-semibold text-gray-900 truncate ${
               isMinimized ? 'text-sm' : 'text-lg'
             }`}>
-              {`Projects in ${selectedCity}`}
+              {`Projects in ${mapFilterLabel}`}
             </h2>
             <div className="flex items-center space-x-1 flex-shrink-0">
               <button
@@ -481,7 +506,7 @@ const MapPage = () => {
         <>
           {/* Non-blocking popup container (no full-screen mask) */}
           {!isProjectMinimized && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center pointer-events-none">
+            <div className="fixed inset-0 z-[1100] flex items-center justify-center pointer-events-none">
               <div
                 className="pointer-events-auto bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col w-[1000px] h-[460px]"
                 style={{
@@ -686,7 +711,7 @@ const MapPage = () => {
 
           {/* Minimized popup - positioned in corner without blocking interactions */}
           {isProjectMinimized && (
-            <div className="fixed bottom-4 right-4 z-[120]">
+            <div className="fixed bottom-4 right-4 z-[1100]">
               <div className="bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col w-80 h-16">
                 {/* Header */}
                 <div className="popup-header flex items-center justify-between border-b border-gray-200 bg-gray-50 rounded-t-lg cursor-grab flex-shrink-0 p-2">

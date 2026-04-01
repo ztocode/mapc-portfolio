@@ -175,6 +175,10 @@ const ProjectsTable = ({
   }
 
   const embedded = variant === 'embedded'
+  const stickyHeaderCell =
+    embedded
+      ? 'sticky top-0 z-20 border-b border-gray-200 bg-gray-50'
+      : ''
 
   return (
     <div
@@ -213,10 +217,16 @@ const ProjectsTable = ({
               : 'min-h-0 flex-1 overflow-y-auto'
           }
         >
-          <table className="min-w-full divide-y divide-gray-200">
+          <table
+            className={`min-w-full divide-y divide-gray-200 ${
+              embedded ? 'border-separate border-spacing-0' : ''
+            }`}
+          >
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                >
                   <button
                     className="flex items-center space-x-1 hover:text-gray-700"
                     onClick={() => handleSort('name')}
@@ -225,7 +235,9 @@ const ProjectsTable = ({
                     <SortIcon columnKey="name" />
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                >
                   <button
                     className="flex items-center space-x-1 hover:text-gray-700"
                     onClick={() => handleSort('leadDepartment')}
@@ -235,7 +247,9 @@ const ProjectsTable = ({
                     <SortIcon columnKey="leadDepartment" />
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                >
                   <button
                     className="flex items-center space-x-1 hover:text-gray-700"
                     onClick={() => handleSort('projectYear')}
@@ -247,7 +261,9 @@ const ProjectsTable = ({
                 </th>
                 {showStartEndDates && (
                   <>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                    >
                       <button
                         className="flex items-center space-x-1 hover:text-gray-700"
                         onClick={() => handleSort('startDate')}
@@ -257,7 +273,9 @@ const ProjectsTable = ({
                         <SortIcon columnKey="startDate" />
                       </button>
                     </th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th
+                      className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                    >
                       <button
                         className="flex items-center space-x-1 hover:text-gray-700"
                         onClick={() => handleSort('endDate')}
@@ -269,7 +287,9 @@ const ProjectsTable = ({
                     </th>
                   </>
                 )}
-                <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                >
                   <button
                     className="flex items-center space-x-1 hover:text-gray-700"
                     onClick={() => handleSort('projectManager')}
@@ -278,7 +298,9 @@ const ProjectsTable = ({
                     <SortIcon columnKey="projectManager" />
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                >
                   <button
                     className="flex items-center space-x-1 hover:text-gray-700"
                     onClick={() => handleSort('projectStatus')}
@@ -287,7 +309,9 @@ const ProjectsTable = ({
                     <SortIcon columnKey="projectStatus" />
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                >
                   <button
                     className="flex items-center space-x-1 hover:text-gray-700"
                     onClick={() => handleSort('projectType')}
@@ -296,7 +320,9 @@ const ProjectsTable = ({
                     <SortIcon columnKey="projectType" />
                   </button>
                 </th>
-                <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${stickyHeaderCell}`}
+                >
                   Airtable
                 </th>
               </tr>

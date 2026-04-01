@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { selectAllProjects } from '../store/projectsSlice'
 import { normalizeLeadDepartments } from '../utils/departmentUtils'
@@ -8,8 +8,17 @@ import {
   fetchMunicipalityCollaborations,
   selectAllMunicipalityCollaborations
 } from '../store/municipalityCollaborationSlice'
-
-const SPLIT_REGEX = /[,;|&]/
+import {
+  normalizeCollaborationMunisField,
+  participatingMunicipalityTowns
+} from '../utils/geographicFocus'
+import {
+  canonicalCodesForSubregionSelection,
+  collectSubregionDropdownLabelsFromProjects,
+  mapcSubRegionCodesUpperFromRaw,
+  mapcSubRegionFieldCodesUpper,
+  projectMatchesSubregionSelection
+} from '../utils/mapcSubRegions'
 
 /** Compact map sidebar dropdown: short height, MAPC blue focus */
 const compactLocationSelectClass =
@@ -19,63 +28,19 @@ const toBoolean = (value) => {
   return value === true ? true : false
 }
 
-const normalizeGeographicFocusToCities = (value) => {
-  if (!value) return []
-
-  if (typeof value === 'string') {
-    return value
-      .split(SPLIT_REGEX)
-      .map((s) => s.trim())
-      .filter(Boolean)
-  }
-
-  if (Array.isArray(value)) {
-    return value.flatMap((item) => {
-      if (!item) return []
-      if (typeof item === 'string') {
-        // Some Airtable arrays may still include delimiter-separated strings.
-        return normalizeGeographicFocusToCities(item)
-      }
-      if (typeof item === 'object') {
-        const candidate =
-          (typeof item.name === 'string' && item.name) ||
-          (typeof item.label === 'string' && item.label) ||
-          (typeof item.value === 'string' && item.value)
-        if (candidate) return normalizeGeographicFocusToCities(candidate)
-      }
-      return [String(item)].map((s) => s.trim()).filter(Boolean)
-    })
-  }
-
-  if (typeof value === 'object') {
-    const candidate =
-      (typeof value.name === 'string' && value.name) ||
-      (typeof value.label === 'string' && value.label) ||
-      (typeof value.value === 'string' && value.value)
-    if (candidate) return normalizeGeographicFocusToCities(candidate)
-  }
-
-  return [String(value)].map((s) => s.trim()).filter(Boolean)
-}
-
-const normalizeMunisToCities = (value) => {
-  // Reuse the same parsing strategy as geographicFocus.
-  // We keep it separate to make intent clearer for munis parsing.
-  return normalizeGeographicFocusToCities(value)
-}
-
 const Sidebar = ({ 
   isCollapsed = false, 
   onToggle, 
   currentPage = 'dashboard', 
-  onCitySelect = null,
+  onMapFilterChange = null,
   viewMode = 'city',
   onProjectSelect = null,
   selectedProject = null,
-  onFilterHighlightedTowns = null,
+  onFilteredProjectsForMapChange = null,
+  onSubregionChoroplethSuppressedChange = null,
 }) => {
   // Don't render sidebar for dashboard page or year view mode
-  if (currentPage === 'dashboard' || viewMode === 'year') {
+  if (currentPage === 'dashboard') {
     return null
   }
 
@@ -93,7 +58,9 @@ const Sidebar = ({
 
   const projectsWithParsedMeta = useMemo(() => {
     return allProjects.map((project) => {
-      const cities = Array.from(new Set(normalizeGeographicFocusToCities(project.geographicFocus)))
+      const cities = Array.from(
+        new Set(participatingMunicipalityTowns(project.allParticipatingMunicipalities))
+      )
       const citySetUpper = new Set(cities.map((c) => c.toUpperCase()))
       const departments = normalizeLeadDepartments(project.leadDepartment)
 
@@ -110,10 +77,59 @@ const Sidebar = ({
         normalizedCities: cities,
         normalizedCitySetUpper: citySetUpper,
         normalizedDepartments: departments,
-        parsedYear
+        parsedYear,
+        normalizedMapcSubRegionCodes: mapcSubRegionCodesUpperFromRaw(project.mapcSubRegions)
       }
     })
   }, [allProjects])
+
+  /** Town names to outline on the map: Municipalities table row with IsSubregion + `munis`, else projects. */
+  const getSubregionHighlightTownNames = useCallback(
+    (label) => {
+      if (!label || !String(label).trim()) return []
+      // 
+      const needCodes = canonicalCodesForSubregionSelection(label)
+      const labelUpper = String(label).trim().toUpperCase()
+      for (const row of municipalityCollaborationData) {
+        if (!toBoolean(row?.isSubregion)) continue
+
+        const muniLabel = typeof row?.muni === 'string' ? row.muni.trim() : ''
+        const muniUpper = muniLabel.toUpperCase()
+        const rowCodes = mapcSubRegionFieldCodesUpper(row?.mapcSubRegion)
+        let codeMatch = false
+        for (const c of needCodes) {
+          if (rowCodes.has(c)) {
+            codeMatch = true
+            break
+          }
+        }
+        const nameMatch = muniLabel && muniUpper === labelUpper
+        const looseMuniMatch =
+          muniLabel &&
+          labelUpper.length >= 4 &&
+          muniUpper.length >= 4 &&
+          (muniUpper.includes(labelUpper) || labelUpper.includes(muniUpper))
+
+        if (!nameMatch && !codeMatch && !looseMuniMatch) continue
+
+        const unique = normalizeCollaborationMunisField(row?.munis)
+        if (unique.length > 0) return unique
+      }
+
+      const fromProjects = new Set()
+      projectsWithParsedMeta.forEach((p) => {
+        if (!projectMatchesSubregionSelection(p, label)) return
+        participatingMunicipalityTowns(p.allParticipatingMunicipalities).forEach(
+          (t) => {
+            const s = String(t).trim()
+            if (s) fromProjects.add(s)
+          }
+        )
+      })
+      return Array.from(fromProjects)
+    },
+    [municipalityCollaborationData, projectsWithParsedMeta]
+  )
 
   useEffect(() => {
     dispatch(fetchMunicipalityCollaborations())
@@ -152,49 +168,10 @@ const Sidebar = ({
     return ensureSelectedValue(fallbackOptions)
   }, [municipalityOptionsFromCollaborationSlice, projectsWithParsedMeta, selectedMunicipality])
 
-  const subregionOptionsFromCollaborationSlice = useMemo(() => {
-    const subregions = new Set()
-
-    municipalityCollaborationData.forEach((row) => {
-      if (!toBoolean(row?.isSubregion)) return
-
-      // Subregion label comes from row.muni for subregion rows.
-      const subregionName =
-        typeof row?.muni === 'string' ? row.muni.trim() : ''
-      if (subregionName) subregions.add(subregionName)
-    })
-
-    return Array.from(subregions).sort((a, b) => a.localeCompare(b))
-  }, [municipalityCollaborationData])
-
-  const subregionMetaFromCollaborationSlice = useMemo(() => {
-    const map = {}
-
-    municipalityCollaborationData.forEach((row) => {
-      if (!toBoolean(row?.isSubregion)) return
-
-      const subregionName =
-        typeof row?.muni === 'string' ? row.muni.trim() : ''
-
-      if (!subregionName) return
-
-      const munis = normalizeMunisToCities(row?.munis)
-      const projectsIDlist = Array.isArray(row?.projectsIDlist)
-        ? row.projectsIDlist.map((id) => String(id).trim()).filter(Boolean)
-        : []
-      const involvedProjects = Array.isArray(row?.involvedProjects)
-        ? row.involvedProjects.map((name) => String(name).trim()).filter(Boolean)
-        : []
-
-      map[subregionName] = {
-        munis: Array.from(new Set(munis)),
-        projectsIDlist: Array.from(new Set(projectsIDlist)),
-        involvedProjects: Array.from(new Set(involvedProjects))
-      }
-    })
-
-    return map
-  }, [municipalityCollaborationData])
+  const subregionOptionsFromProjects = useMemo(
+    () => collectSubregionDropdownLabelsFromProjects(allProjects),
+    [allProjects]
+  )
 
   const subregionOptions = useMemo(() => {
     const ensureSelectedValue = (options) => {
@@ -203,9 +180,8 @@ const Sidebar = ({
       return [selectedSubregion, ...options]
     }
 
-    // Only use rows from municipalityCollaborationSlice where isSubregion is true.
-    return ensureSelectedValue(subregionOptionsFromCollaborationSlice)
-  }, [subregionOptionsFromCollaborationSlice, selectedSubregion])
+    return ensureSelectedValue(subregionOptionsFromProjects)
+  }, [subregionOptionsFromProjects, selectedSubregion])
 
   const yearOptions = useMemo(() => {
     const years = new Set()
@@ -252,22 +228,6 @@ const Sidebar = ({
   }, [allProjects])
 
   const selectedPrimaryValue = primaryType === 'municipality' ? selectedMunicipality : selectedSubregion
-  const selectedSubregionMeta = selectedSubregion
-    ? (subregionMetaFromCollaborationSlice[selectedSubregion] || null)
-    : null
-  const selectedSubregionTowns = selectedSubregion
-    ? new Set(
-        ((selectedSubregionMeta?.munis) || []).map((t) =>
-          t.toUpperCase()
-        )
-      )
-    : new Set()
-  const selectedSubregionLinkedProjectIds = selectedSubregion
-    ? new Set((selectedSubregionMeta?.projectsIDlist || []).map((id) => String(id).trim()))
-    : new Set()
-  const selectedSubregionLinkedProjectNamesLower = selectedSubregion
-    ? new Set((selectedSubregionMeta?.involvedProjects || []).map((name) => String(name).toLowerCase().trim()))
-    : new Set()
 
   // Keep municipality matching logic aligned with tooltip:
   // municipalityCollaboration.projectsIDlist -> project.recordId / project.id.
@@ -307,23 +267,7 @@ const Sidebar = ({
           return false
         }
         if (primaryType === 'subregion') {
-          // Subregion logic:
-          // 1) Prefer linked IDs from projectsIDlist.
-          // 2) Also allow involvedProjects name matches.
-          // 3) Fallback to munis city matching when links are unavailable.
-          const projectRecordId = project.recordId != null ? String(project.recordId).trim() : ''
-          const projectAirtableId = project.id != null ? String(project.id).trim() : ''
-          const projectNameLower = (project.name || '').toLowerCase().trim()
-
-          const idMatch =
-            (projectRecordId && selectedSubregionLinkedProjectIds.has(projectRecordId))
-          if (idMatch) return true
-
-          if (projectNameLower && selectedSubregionLinkedProjectNamesLower.has(projectNameLower)) {
-            return true
-          }
-
-          return project.normalizedCities.some((city) => selectedSubregionTowns.has(city.toUpperCase()))
+          return projectMatchesSubregionSelection(project, selectedSubregion)
         }
         return true
       })
@@ -348,89 +292,16 @@ const Sidebar = ({
     selectedMunicipality,
     selectedMunicipalityLinkedProjectIds,
     selectedSubregion,
-    selectedSubregionLinkedProjectIds,
-    selectedSubregionLinkedProjectNamesLower,
-    selectedSubregionTowns,
     yearRange,
     selectedDepartment,
     searchTerm,
     selectedPrimaryValue
   ])
 
-  // Light-green map highlight for municipalities that still have linked projects
-  // after the current filters (year/department/search + selected primary scope).
-  // Uses `municipalityCollaboration.muni` + `projectsIDlist` relationship.
-  const filterHighlightedTowns = useMemo(() => {
-    const scopeMunisUpper =
-      primaryType === 'municipality' && selectedMunicipality
-        ? new Set([String(selectedMunicipality).trim().toUpperCase()])
-        : primaryType === 'subregion' && selectedSubregion
-          ? new Set(
-              (subregionMetaFromCollaborationSlice[selectedSubregion]?.munis || [])
-                .map((t) => String(t).trim().toUpperCase())
-                .filter(Boolean)
-            )
-          : new Set()
-
-    const hasScopedSelection = scopeMunisUpper.size > 0
-
-    const filteredProjectIdSet = new Set()
-    const filteredProjectNamesLower = new Set()
-    filteredProjects.forEach((project) => {
-      if (project?.recordId != null) {
-        filteredProjectIdSet.add(String(project.recordId).trim())
-      }
-      if (project?.id != null) {
-        filteredProjectIdSet.add(String(project.id).trim())
-      }
-      if (project?.name) {
-        filteredProjectNamesLower.add(String(project.name).toLowerCase().trim())
-      }
-    })
-
-    const result = new Set()
-
-    municipalityCollaborationData.forEach((row) => {
-      if (!toBoolean(row?.isMuni)) return
-
-      const muniName = typeof row?.muni === 'string' ? row.muni.trim() : ''
-      if (!muniName) return
-
-      const muniUpper = muniName.toUpperCase()
-      if (hasScopedSelection && !scopeMunisUpper.has(muniUpper)) return
-
-      const linkedIds = Array.isArray(row?.projectsIDlist) ? row.projectsIDlist : []
-      const hasIdMatch = linkedIds.some((id) =>
-        filteredProjectIdSet.has(String(id).trim())
-      )
-
-      if (hasIdMatch) {
-        result.add(muniName)
-        return
-      }
-
-      // Fallback when `projectsIDlist` is missing/incomplete
-      const involved = Array.isArray(row?.involvedProjects) ? row.involvedProjects : []
-      const hasNameMatch = involved.some((name) =>
-        filteredProjectNamesLower.has(String(name).toLowerCase().trim())
-      )
-      if (hasNameMatch) result.add(muniName)
-    })
-
-    return Array.from(result)
-  }, [
-    filteredProjects,
-    primaryType,
-    selectedMunicipality,
-    selectedSubregion,
-    subregionMetaFromCollaborationSlice,
-    municipalityCollaborationData
-  ])
-
   useEffect(() => {
-    if (!onFilterHighlightedTowns) return
-    onFilterHighlightedTowns(filterHighlightedTowns)
-  }, [filterHighlightedTowns, onFilterHighlightedTowns])
+    if (!onFilteredProjectsForMapChange) return
+    onFilteredProjectsForMapChange(filteredProjects)
+  }, [filteredProjects, onFilteredProjectsForMapChange])
 
   const handleProjectClick = (project) => {
     if (onProjectSelect) onProjectSelect(project)
@@ -442,21 +313,36 @@ const Sidebar = ({
     setSelectedSubregion('')
     setShowFilteredProjectsTable(false)
     if (onProjectSelect) onProjectSelect(null)
-    if (onCitySelect) onCitySelect(null, { source: 'filter', towns: [] })
+    if (onMapFilterChange) onMapFilterChange(null, { towns: [] })
   }
 
   const handleMunicipalityChange = (municipality) => {
     setSelectedMunicipality(municipality)
-    if (onCitySelect) onCitySelect(municipality || null, { source: 'filter', towns: [] })
+    if (onMapFilterChange) onMapFilterChange(municipality || null, { source: 'filter', towns: [] })
   }
 
   const handleSubregionChange = (subregion) => {
     setSelectedSubregion(subregion)
-    const towns = subregion
-      ? ((subregionMetaFromCollaborationSlice[subregion]?.munis) || [])
-      : []
-    if (onCitySelect) onCitySelect(subregion || null, { source: 'filter', towns })
   }
+
+  useEffect(() => {
+    if (!onMapFilterChange) return
+    if (primaryType !== 'subregion') return
+    const towns = getSubregionHighlightTownNames(selectedSubregion)
+    onMapFilterChange(selectedSubregion || null, { source: 'filter', towns })
+  }, [
+    primaryType,
+    selectedSubregion,
+    getSubregionHighlightTownNames,
+    onMapFilterChange,
+  ])
+
+  useEffect(() => {
+    if (!onSubregionChoroplethSuppressedChange) return
+    onSubregionChoroplethSuppressedChange(
+      primaryType === 'subregion' && Boolean(selectedSubregion)
+    )
+  }, [primaryType, selectedSubregion, onSubregionChoroplethSuppressedChange])
 
   const handleYearStartChange = (value) => {
     const nextStart = parseInt(value, 10)
