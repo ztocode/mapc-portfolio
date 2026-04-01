@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { selectAllProjects } from '../store/projectsSlice'
 import { normalizeLeadDepartments } from '../utils/departmentUtils'
@@ -8,17 +8,9 @@ import {
   fetchMunicipalityCollaborations,
   selectAllMunicipalityCollaborations
 } from '../store/municipalityCollaborationSlice'
-import {
-  normalizeCollaborationMunisField,
-  participatingMunicipalityTowns
-} from '../utils/geographicFocus'
-import {
-  canonicalCodesForSubregionSelection,
-  collectSubregionDropdownLabelsFromProjects,
-  mapcSubRegionCodesUpperFromRaw,
-  mapcSubRegionFieldCodesUpper,
-  projectMatchesSubregionSelection
-} from '../utils/mapcSubRegions'
+import { participatingMunicipalityTowns } from '../utils/geographicFocus'
+// Subregion filter disabled — also restore: normalizeCollaborationMunisField + mapcSubRegion helpers below
+import { mapcSubRegionCodesUpperFromRaw } from '../utils/mapcSubRegions'
 
 /** Compact map sidebar dropdown: short height, MAPC blue focus */
 const compactLocationSelectClass =
@@ -48,9 +40,7 @@ const Sidebar = ({
   const allProjects = useSelector(selectAllProjects)
   const municipalityCollaborationData = useSelector(selectAllMunicipalityCollaborations)
 
-  const [primaryType, setPrimaryType] = useState('municipality')
   const [selectedMunicipality, setSelectedMunicipality] = useState('')
-  const [selectedSubregion, setSelectedSubregion] = useState('')
   const [yearRange, setYearRange] = useState({ start: null, end: null })
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -82,54 +72,6 @@ const Sidebar = ({
       }
     })
   }, [allProjects])
-
-  /** Town names to outline on the map: Municipalities table row with IsSubregion + `munis`, else projects. */
-  const getSubregionHighlightTownNames = useCallback(
-    (label) => {
-      if (!label || !String(label).trim()) return []
-      // 
-      const needCodes = canonicalCodesForSubregionSelection(label)
-      const labelUpper = String(label).trim().toUpperCase()
-      for (const row of municipalityCollaborationData) {
-        if (!toBoolean(row?.isSubregion)) continue
-
-        const muniLabel = typeof row?.muni === 'string' ? row.muni.trim() : ''
-        const muniUpper = muniLabel.toUpperCase()
-        const rowCodes = mapcSubRegionFieldCodesUpper(row?.mapcSubRegion)
-        let codeMatch = false
-        for (const c of needCodes) {
-          if (rowCodes.has(c)) {
-            codeMatch = true
-            break
-          }
-        }
-        const nameMatch = muniLabel && muniUpper === labelUpper
-        const looseMuniMatch =
-          muniLabel &&
-          labelUpper.length >= 4 &&
-          muniUpper.length >= 4 &&
-          (muniUpper.includes(labelUpper) || labelUpper.includes(muniUpper))
-
-        if (!nameMatch && !codeMatch && !looseMuniMatch) continue
-
-        const unique = normalizeCollaborationMunisField(row?.munis)
-        if (unique.length > 0) return unique
-      }
-
-      const fromProjects = new Set()
-      projectsWithParsedMeta.forEach((p) => {
-        if (!projectMatchesSubregionSelection(p, label)) return
-        participatingMunicipalityTowns(p.allParticipatingMunicipalities).forEach(
-          (t) => {
-            const s = String(t).trim()
-            if (s) fromProjects.add(s)
-          }
-        )
-      })
-      return Array.from(fromProjects)
-    },
-    [municipalityCollaborationData, projectsWithParsedMeta]
-  )
 
   useEffect(() => {
     dispatch(fetchMunicipalityCollaborations())
@@ -168,20 +110,13 @@ const Sidebar = ({
     return ensureSelectedValue(fallbackOptions)
   }, [municipalityOptionsFromCollaborationSlice, projectsWithParsedMeta, selectedMunicipality])
 
+  /* Subregion filter disabled
   const subregionOptionsFromProjects = useMemo(
     () => collectSubregionDropdownLabelsFromProjects(allProjects),
     [allProjects]
   )
-
-  const subregionOptions = useMemo(() => {
-    const ensureSelectedValue = (options) => {
-      if (!selectedSubregion) return options
-      if (options.includes(selectedSubregion)) return options
-      return [selectedSubregion, ...options]
-    }
-
-    return ensureSelectedValue(subregionOptionsFromProjects)
-  }, [subregionOptionsFromProjects, selectedSubregion])
+  const subregionOptions = useMemo(() => { ... }, [subregionOptionsFromProjects, selectedSubregion])
+  */
 
   const yearOptions = useMemo(() => {
     const years = new Set()
@@ -227,7 +162,7 @@ const Sidebar = ({
     return Array.from(departments).sort((a, b) => a.localeCompare(b))
   }, [allProjects])
 
-  const selectedPrimaryValue = primaryType === 'municipality' ? selectedMunicipality : selectedSubregion
+  const selectedPrimaryValue = selectedMunicipality
 
   // Keep municipality matching logic aligned with tooltip:
   // municipalityCollaboration.projectsIDlist -> project.recordId / project.id.
@@ -254,22 +189,16 @@ const Sidebar = ({
     return projectsWithParsedMeta
       .filter((project) => {
         if (!selectedPrimaryValue) return true
-        if (primaryType === 'municipality') {
-          // Same as tooltip: include only projects linked from collaboration table.
-          if (selectedMunicipalityLinkedProjectIds.size > 0) {
-            const projectRecordId = project.recordId != null ? String(project.recordId).trim() : ''
-            const projectAirtableId = project.id != null ? String(project.id).trim() : ''
-            return (
-              (projectRecordId && selectedMunicipalityLinkedProjectIds.has(projectRecordId)) ||
-              (projectAirtableId && selectedMunicipalityLinkedProjectIds.has(projectAirtableId))
-            )
-          }
-          return false
+        // Municipality primary filter (subregion mode disabled)
+        if (selectedMunicipalityLinkedProjectIds.size > 0) {
+          const projectRecordId = project.recordId != null ? String(project.recordId).trim() : ''
+          const projectAirtableId = project.id != null ? String(project.id).trim() : ''
+          return (
+            (projectRecordId && selectedMunicipalityLinkedProjectIds.has(projectRecordId)) ||
+            (projectAirtableId && selectedMunicipalityLinkedProjectIds.has(projectAirtableId))
+          )
         }
-        if (primaryType === 'subregion') {
-          return projectMatchesSubregionSelection(project, selectedSubregion)
-        }
-        return true
+        return false
       })
       .filter((project) => {
         if (yearRange.start == null || yearRange.end == null) return true
@@ -288,10 +217,8 @@ const Sidebar = ({
       .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   }, [
     projectsWithParsedMeta,
-    primaryType,
     selectedMunicipality,
     selectedMunicipalityLinkedProjectIds,
-    selectedSubregion,
     yearRange,
     selectedDepartment,
     searchTerm,
@@ -307,6 +234,7 @@ const Sidebar = ({
     if (onProjectSelect) onProjectSelect(project)
   }
 
+  /* Subregion filter disabled
   const handlePrimaryTypeChange = (nextType) => {
     setPrimaryType(nextType)
     setSelectedMunicipality('')
@@ -315,12 +243,14 @@ const Sidebar = ({
     if (onProjectSelect) onProjectSelect(null)
     if (onMapFilterChange) onMapFilterChange(null, { towns: [] })
   }
+  */
 
   const handleMunicipalityChange = (municipality) => {
     setSelectedMunicipality(municipality)
     if (onMapFilterChange) onMapFilterChange(municipality || null, { source: 'filter', towns: [] })
   }
 
+  /* Subregion filter disabled
   const handleSubregionChange = (subregion) => {
     setSelectedSubregion(subregion)
   }
@@ -343,6 +273,12 @@ const Sidebar = ({
       primaryType === 'subregion' && Boolean(selectedSubregion)
     )
   }, [primaryType, selectedSubregion, onSubregionChoroplethSuppressedChange])
+  */
+
+  useEffect(() => {
+    if (!onSubregionChoroplethSuppressedChange) return
+    onSubregionChoroplethSuppressedChange(false)
+  }, [onSubregionChoroplethSuppressedChange])
 
   const handleYearStartChange = (value) => {
     const nextStart = parseInt(value, 10)
@@ -408,81 +344,36 @@ const Sidebar = ({
           {/* Filters + Project List */}
           <div className="flex-1 p-3">
             <div className="space-y-3 mb-4">
+              {/*
+              Subregion filter disabled — restore "Primary Filter Type" + Subregion select (see git history).
+              */}
+
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Primary Filter Type</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handlePrimaryTypeChange('municipality')}
-                    className={`px-2 py-1 text-xs rounded border ${primaryType === 'municipality' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-300 text-gray-700'}`}
+                <label className="mb-0.5 block text-xs font-semibold text-gray-700">
+                  Municipality
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedMunicipality}
+                    onChange={(e) => handleMunicipalityChange(e.target.value)}
+                    className={compactLocationSelectClass}
+                    aria-label="Select municipality"
                   >
-                    Municipality
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePrimaryTypeChange('subregion')}
-                    className={`px-2 py-1 text-xs rounded border ${primaryType === 'subregion' ? 'bg-blue-100 border-blue-300 text-blue-800' : 'bg-white border-gray-300 text-gray-700'}`}
+                    <option value="">Select…</option>
+                    {municipalityOptions.map((city) => (
+                      <option key={city} value={city}>
+                        {city}
+                      </option>
+                    ))}
+                  </select>
+                  <span
+                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
+                    aria-hidden
                   >
-                    Subregion
-                  </button>
+                    <i className="fas fa-chevron-down text-[10px]" />
+                  </span>
                 </div>
               </div>
-
-              {primaryType === 'municipality' ? (
-                <div>
-                  <label className="mb-0.5 block text-xs font-semibold text-gray-700">
-                    Municipality
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedMunicipality}
-                      onChange={(e) => handleMunicipalityChange(e.target.value)}
-                      className={compactLocationSelectClass}
-                      aria-label="Select municipality"
-                    >
-                      <option value="">Select…</option>
-                      {municipalityOptions.map((city) => (
-                        <option key={city} value={city}>
-                          {city}
-                        </option>
-                      ))}
-                    </select>
-                    <span
-                      className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
-                      aria-hidden
-                    >
-                      <i className="fas fa-chevron-down text-[10px]" />
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="mb-0.5 block text-xs font-semibold text-gray-700">
-                    Subregion
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={selectedSubregion}
-                      onChange={(e) => handleSubregionChange(e.target.value)}
-                      className={compactLocationSelectClass}
-                      aria-label="Select subregion"
-                    >
-                      <option value="">Select…</option>
-                      {subregionOptions.map((subregion) => (
-                        <option key={subregion} value={subregion}>
-                          {subregion}
-                        </option>
-                      ))}
-                    </select>
-                    <span
-                      className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"
-                      aria-hidden
-                    >
-                      <i className="fas fa-chevron-down text-[10px]" />
-                    </span>
-                  </div>
-                </div>
-              )}
 
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Year Range</label>
