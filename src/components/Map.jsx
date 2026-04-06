@@ -15,11 +15,54 @@ const CHOROPLETH_BUCKET_COLORS = [
   "#172554",
 ];
 
+/** At most this many positive-count buckets; above that we quantize with quintiles. */
+const CHOROPLETH_MAX_POSITIVE_BUCKETS = 5;
+
 /** Single fill when the map sidebar has exactly one project after filters. */
 const CHOROPLETH_SINGLE_FILTER_PROJECT_COLOR = "#3b82f6";
 
 /** Fill for municipalities with no matching projects in the current map filter. */
 const CHOROPLETH_ZERO_PROJECT_FILL = "#e5e7eb";
+
+/** Must match `massachusetts-choropleth` paint so legend swatches match polygon appearance. */
+const CHOROPLETH_FILL_OPACITY = 0.7;
+
+/**
+ * Approximate land color under town fills on Mapbox light-v11; legend stacks this under the
+ * same fill opacity as the map so swatches align visually with the choropleth.
+ */
+const CHOROPLETH_LEGEND_UNDERLAY = "#ebebeb";
+
+function sortedUniquePositiveCounts(counts) {
+  const set = new Set();
+  counts.forEach((c) => {
+    if (typeof c === "number" && c > 0) set.add(c);
+  });
+  return Array.from(set).sort((a, b) => a - b);
+}
+
+/**
+ * Spread rank 0..k-1 across the blue ramp (one row per distinct count when k ≤ 5).
+ * Few levels stay on the lighter end: a single positive bucket uses mid blue, not navy.
+ */
+function denseChoroplethPaletteIndex(rank, k) {
+  const maxIdx = CHOROPLETH_BUCKET_COLORS.length - 1;
+  if (k <= 1) {
+    return 2;
+  }
+  const paletteMax = k === 2 ? maxIdx - 1 : maxIdx;
+  return Math.round((rank * paletteMax) / (k - 1));
+}
+
+function choroplethDenseFillColor(count, uniquePositiveSorted) {
+  if (count <= 0 || !uniquePositiveSorted.length) {
+    return CHOROPLETH_BUCKET_COLORS[0];
+  }
+  const rank = uniquePositiveSorted.indexOf(count);
+  if (rank < 0) return CHOROPLETH_BUCKET_COLORS[0];
+  const idx = denseChoroplethPaletteIndex(rank, uniquePositiveSorted.length);
+  return CHOROPLETH_BUCKET_COLORS[idx];
+}
 
 /** Buckets use the real positive range: [minPositive, maxCount], inclusive. */
 function countToChoroplethBucket(count, minPositive, maxCount) {
@@ -55,7 +98,7 @@ function formatChoroplethRangeForBucket(bucketIndex, minPositive, maxCount) {
 }
 
 function formatProjectsLegendTitle(range) {
-  if (range === "—") return "No municipalities";
+  if (range === "—") return "—";
   if (range.includes("–")) return `${range} projects`;
   const n = parseInt(range, 10);
   if (n === 1) return "1 project";
@@ -741,6 +784,12 @@ const MapComponent = ({
     });
     if (minPositive === Infinity) minPositive = null;
 
+    const uniquePositiveSorted = sortedUniquePositiveCounts(counts);
+    const choroplethScale =
+      uniquePositiveSorted.length > CHOROPLETH_MAX_POSITIVE_BUCKETS
+        ? "quintile"
+        : "dense";
+
     const features = geojsonData.features.map((f, i) => ({
       ...f,
       properties: {
@@ -749,7 +798,9 @@ const MapComponent = ({
         choroplethColor:
           choroplethSingleFilterProject && counts[i] > 0
             ? CHOROPLETH_SINGLE_FILTER_PROJECT_COLOR
-            : choroplethBucketFillColor(counts[i], minPositive, maxCount),
+            : choroplethScale === "dense"
+              ? choroplethDenseFillColor(counts[i], uniquePositiveSorted)
+              : choroplethBucketFillColor(counts[i], minPositive, maxCount),
       },
     }));
 
@@ -758,6 +809,8 @@ const MapComponent = ({
       minCount,
       maxCount,
       minPositive,
+      choroplethScale,
+      uniquePositiveSorted,
     };
   }, [geojsonData, choroplethCountsByTown, choroplethSingleFilterProject]);
 
@@ -805,6 +858,8 @@ const MapComponent = ({
         minCount: choroplethFromMerge.minCount,
         maxCount: choroplethFromMerge.maxCount,
         minPositive: choroplethFromMerge.minPositive,
+        choroplethScale: choroplethFromMerge.choroplethScale,
+        uniquePositiveSorted: choroplethFromMerge.uniquePositiveSorted,
       };
     }
     const fc =
@@ -813,13 +868,21 @@ const MapComponent = ({
         ? choroplethData
         : null;
     if (!fc?.features?.length) {
-      return { minCount: 0, maxCount: 0, minPositive: null };
+      return {
+        minCount: 0,
+        maxCount: 0,
+        minPositive: null,
+        choroplethScale: "dense",
+        uniquePositiveSorted: [],
+      };
     }
     let minCount = Infinity;
     let maxCount = -Infinity;
+    const allCounts = [];
     fc.features.forEach((f) => {
       const c = f?.properties?.projectCount;
       if (typeof c !== "number") return;
+      allCounts.push(c);
       if (c < minCount) minCount = c;
       if (c > maxCount) maxCount = c;
     });
@@ -831,12 +894,28 @@ const MapComponent = ({
       if (typeof c === "number" && c > 0 && c < minPositive) minPositive = c;
     });
     if (minPositive === Infinity) minPositive = null;
-    return { minCount, maxCount, minPositive };
+    const uniquePositiveSorted = sortedUniquePositiveCounts(allCounts);
+    const choroplethScale =
+      uniquePositiveSorted.length > CHOROPLETH_MAX_POSITIVE_BUCKETS
+        ? "quintile"
+        : "dense";
+    return {
+      minCount,
+      maxCount,
+      minPositive,
+      choroplethScale,
+      uniquePositiveSorted,
+    };
   }, [showChoroplethFill, choroplethFromMerge, choroplethData]);
 
   const choroplethLegendRows = useMemo(() => {
     if (choroplethLegendExtent === null) return [];
-    const { maxCount, minPositive } = choroplethLegendExtent;
+    const {
+      maxCount,
+      minPositive,
+      choroplethScale = "quintile",
+      uniquePositiveSorted = [],
+    } = choroplethLegendExtent;
     const rows = [
       {
         key: "none",
@@ -846,12 +925,6 @@ const MapComponent = ({
       },
     ];
     if (maxCount <= 0 || minPositive == null) {
-      rows.push({
-        key: "bucket-empty",
-        swatchColor: CHOROPLETH_BUCKET_COLORS[2],
-        title: "—",
-        subtitle: "No counts under current filters",
-      });
       return rows;
     }
     if (choroplethSingleFilterProject) {
@@ -867,8 +940,26 @@ const MapComponent = ({
       });
       return rows;
     }
+    if (
+      choroplethScale === "dense" &&
+      uniquePositiveSorted.length > 0 &&
+      uniquePositiveSorted.length <= CHOROPLETH_MAX_POSITIVE_BUCKETS
+    ) {
+      const k = uniquePositiveSorted.length;
+      uniquePositiveSorted.forEach((n, i) => {
+        const paletteIdx = denseChoroplethPaletteIndex(i, k);
+        rows.push({
+          key: `dense-${n}`,
+          swatchColor: CHOROPLETH_BUCKET_COLORS[paletteIdx],
+          title: formatProjectsLegendTitle(String(n)),
+          subtitle: null,
+        });
+      });
+      return rows;
+    }
     for (let b = 0; b < 5; b += 1) {
       const range = formatChoroplethRangeForBucket(b, minPositive, maxCount);
+      if (range === "—") continue;
       rows.push({
         key: `bucket-${b}`,
         swatchColor: CHOROPLETH_BUCKET_COLORS[b],
@@ -1055,14 +1146,37 @@ const MapComponent = ({
             {choroplethLegendRows.map((row) => (
               <li key={row.key} className="flex items-start gap-2">
                 <span
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border border-gray-300 shadow-sm"
-                  style={{
-                    backgroundColor: row.swatchColor || "transparent",
-                    backgroundImage: row.swatchColor
+                  className={`mt-0.5 h-4 w-4 shrink-0 overflow-hidden rounded border border-gray-300 shadow-sm ${
+                    row.swatchColor ? "relative" : ""
+                  }`}
+                  style={
+                    row.swatchColor
                       ? undefined
-                      : "repeating-linear-gradient(45deg, #e5e7eb 0, #e5e7eb 2px, #ffffff 2px, #ffffff 4px)",
-                  }}
-                />
+                      : {
+                          backgroundColor: "transparent",
+                          backgroundImage:
+                            "repeating-linear-gradient(45deg, #e5e7eb 0, #e5e7eb 2px, #ffffff 2px, #ffffff 4px)",
+                        }
+                  }
+                >
+                  {row.swatchColor ? (
+                    <>
+                      <span
+                        className="absolute inset-0"
+                        style={{ backgroundColor: CHOROPLETH_LEGEND_UNDERLAY }}
+                        aria-hidden
+                      />
+                      <span
+                        className="absolute inset-0"
+                        style={{
+                          backgroundColor: row.swatchColor,
+                          opacity: CHOROPLETH_FILL_OPACITY,
+                        }}
+                        aria-hidden
+                      />
+                    </>
+                  ) : null}
+                </span>
                 <div className="min-w-0 leading-tight">
                   <div className="text-[11px] font-medium text-gray-900">
                     {row.title}
@@ -1124,7 +1238,7 @@ const MapComponent = ({
                     CHOROPLETH_ZERO_PROJECT_FILL,
                     ["get", "choroplethColor"],
                   ],
-                  "fill-opacity": 0.7,
+                  "fill-opacity": CHOROPLETH_FILL_OPACITY,
                 }}
                 filter={["has", "town"]}
               />
